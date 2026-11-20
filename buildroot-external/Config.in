@@ -1,0 +1,2 @@
+# Pacotes próprios do projeto. Ainda não há nenhum: a aplicação vai para a imagem como tars de containers, copiados
+# pelo board/bizas/rpi4/post-build.sh

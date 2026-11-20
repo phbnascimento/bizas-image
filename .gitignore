@@ -1,0 +1,18 @@
+.claude/
+docs/other/
+
+# Reconstruídos pelos scripts
+buildroot/
+buildroot-20*/
+output*/
+*.img
+*.img.gz
+*.img.xz
+*.log
+
+!evidence/**/*.log
+
+# Artefatos de build
+application/**/bin/
+*.tar
+__pycache__/

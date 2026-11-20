@@ -1,0 +1,14 @@
+#!/bin/sh
+# set-date: informa a hora real à página do chat, para ela mostrar data e hora em vez da idade das mensagens. Não muda
+# o relógio da placa nem os carimbos assinados, e não sobrevive a um reinício (o par fica só em memória no server)
+#
+# Uso: set-date YYYY-MM-DD-hh-mm-ss [--tz ZONE]   (fuso padrão UTC; --tz -03:00 para o horário de Brasília)
+# Roda como root no console da placa; repassa ao container do server
+BIZAS_DIR="${BIZAS_DIR:-/opt/bizas}"
+. "$BIZAS_DIR/version.env"
+
+if [ "$#" -lt 1 ] || [ "$#" -gt 3 ]; then
+	echo "usage: set-date YYYY-MM-DD-hh-mm-ss [--tz ZONE]   (UTC by default; example: set-date 2026-11-20-03-39-55)" >&2
+	exit 2
+fi
+exec docker exec "$IMG_SERVER" /app set-date "$@"

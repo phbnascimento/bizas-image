@@ -1,0 +1,13 @@
+#!/bin/sh
+# set-auto-date: consulta a hora real na rede (SNTP: pool.ntp.org, time.google.com, time.cloudflare.com), pela interface
+# que estiver conectada, e a informa à página do chat como o set-date. Sem rede, sai com erro e sugere o set-date
+#
+# Uso: set-auto-date
+BIZAS_DIR="${BIZAS_DIR:-/opt/bizas}"
+. "$BIZAS_DIR/version.env"
+
+if [ "$#" -ne 0 ]; then
+	echo "usage: set-auto-date" >&2
+	exit 2
+fi
+exec docker exec "$IMG_SERVER" /app set-auto-date

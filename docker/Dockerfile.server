@@ -1,0 +1,19 @@
+# bizas-server. Página, WebSocket e repasse ao validator. Sem volume. Contexto do build: application/. Use
+# scripts/containers-build.sh, que passa GOLANG_IMAGE de docker/version.env
+ARG GOLANG_IMAGE
+
+# O compilador roda nativo (BUILDPLATFORM) e compila cruzado para TARGETARCH
+FROM --platform=$BUILDPLATFORM ${GOLANG_IMAGE} AS build
+ARG TARGETARCH
+WORKDIR /src
+COPY . .
+# Offline: dependências do vendor/, nada é baixado
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=$TARGETARCH GOFLAGS=-mod=vendor GOPROXY=off \
+    go build -trimpath -ldflags="-s -w -buildid=" -o /out/app ./server
+
+FROM scratch
+COPY --from=build /out/app /app
+USER 65532:65532
+EXPOSE 5000
+HEALTHCHECK --interval=5s --timeout=2s --start-period=2s --retries=3 CMD ["/app", "health"]
+ENTRYPOINT ["/app"]

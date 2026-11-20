@@ -1,0 +1,30 @@
+# Opções do Bizas aplicadas por cima do raspberrypi4_64_defconfig do Buildroot 2026.05.1. Quem aplica:
+# scripts/configure-buildroot.sh (merge_config + olddefconfig), que confere cada linha abaixo no .config e grava o
+# resultado em buildroot-external/configs/bizas_rpi4_defconfig
+#
+# Sistema mínimo (§5): só o que a aplicação precisa. Rede, init e kernel vêm do defconfig da Pi
+
+# System configuration
+BR2_TARGET_GENERIC_HOSTNAME="bizas"
+BR2_TARGET_GENERIC_ISSUE="Bizas"
+# Senha do root para manutenção pelo console. Em texto claro aqui; o Buildroot grava só o hash (SHA-256 crypt, padrão
+# de BR2_TARGET_GENERIC_PASSWD_METHOD) no /etc/shadow da imagem
+BR2_TARGET_GENERIC_ROOT_PASSWD="bizasprotocol"
+BR2_ROOTFS_OVERLAY="$(BR2_EXTERNAL_BIZAS_PATH)/../rootfs-overlay"
+# O primeiro é o da Raspberry (console no tty1); o segundo embarca os tars dos containers e o provisionamento
+BR2_ROOTFS_POST_BUILD_SCRIPT="board/raspberrypi4-64/post-build.sh $(BR2_EXTERNAL_BIZAS_PATH)/board/bizas/rpi4/post-build.sh"
+
+# Kernel: namespaces, cgroups, veth, bridge, netfilter/NAT e overlayfs para o Docker
+BR2_LINUX_KERNEL_CONFIG_FRAGMENT_FILES="$(BR2_EXTERNAL_BIZAS_PATH)/../kernel-config/docker.fragment"
+
+# Target packages → System tools. docker-engine traz dockerd, containerd, runc, iptables e o S60dockerd; docker-cli é
+# o comando "docker", usado pelo provisionamento
+BR2_PACKAGE_DOCKER_ENGINE=y
+BR2_PACKAGE_DOCKER_CLI=y
+
+# Bootloaders → rpi-firmware
+BR2_PACKAGE_RPI_FIRMWARE_CONFIG_FILE="$(BR2_EXTERNAL_BIZAS_PATH)/board/bizas/rpi4/config.txt"
+BR2_PACKAGE_RPI_FIRMWARE_CMDLINE_FILE="$(BR2_EXTERNAL_BIZAS_PATH)/board/bizas/rpi4/cmdline.txt"
+
+# Filesystem images. Os 120M do defconfig da Pi não comportam o Docker, os tars e as camadas em /var/lib/docker
+BR2_TARGET_ROOTFS_EXT2_SIZE="1024M"

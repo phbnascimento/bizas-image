@@ -1,0 +1,86 @@
+#!/bin/sh
+#
+# S99bizas: provisiona os containers do Bizas no 1º boot
+#
+# O init do BusyBox (/etc/init.d/rcS) roda os scripts Sxx em ordem com "start"; o S60dockerd, do pacote docker-engine,
+# já iniciou o dockerd. No 1º boot este script espera o dockerd responder e roda o /opt/bizas/provision.sh, que carrega
+# as imagens dos tars (docker load), cria a rede, o volume e os dois containers com --restart unless-stopped. Depois
+# grava uma marca, e nos boots seguintes não faz nada: quem religa os containers é o próprio dockerd, sem nenhum
+# comando docker no caminho crítico do boot (hipótese ainda não medida na placa)
+#
+# A marca só é gravada com os dois containers rodando: se faltar energia no meio do docker load, o boot seguinte tenta
+# de novo
+
+DIR=/opt/bizas
+MARKER=/var/lib/bizas/provisioned
+# 300 tentativas de 0,2 s = 60 s
+TRIES=300
+INTERVAL=0.2
+
+. "$DIR/version.env"
+
+wait_docker() {
+	i=0
+	while ! docker info >/dev/null 2>&1; do
+		i=$((i + 1))
+		[ "$i" -ge "$TRIES" ] && return 1
+		sleep "$INTERVAL"
+	done
+	return 0
+}
+
+both_running() {
+	i=0
+	while [ "$i" -lt 25 ]; do
+		v="$(docker inspect -f '{{.State.Running}}' "$IMG_VALIDATOR" 2>/dev/null)"
+		s="$(docker inspect -f '{{.State.Running}}' "$IMG_SERVER" 2>/dev/null)"
+		[ "$v" = true ] && [ "$s" = true ] && return 0
+		i=$((i + 1))
+		sleep "$INTERVAL"
+	done
+	return 1
+}
+
+start() {
+	if [ -e "$MARKER" ]; then
+		echo "[bizas] already provisioned; dockerd restarts the containers"
+		return 0
+	fi
+	echo "[bizas] first boot: provisioning the containers"
+	echo "[bizas] docker load may keep this screen still for a few minutes"
+	if ! wait_docker; then
+		echo "[bizas] ERROR: dockerd did not answer within 60 s"
+		return 1
+	fi
+	if ! HOST_PORT=80 "$DIR/provision.sh" "$DIR"; then
+		echo "[bizas] ERROR: provisioning failed; it will be retried on the next boot"
+		return 1
+	fi
+	if ! both_running; then
+		echo "[bizas] ERROR: containers are not running; see: docker logs $IMG_VALIDATOR; docker logs $IMG_SERVER"
+		return 1
+	fi
+	mkdir -p "$(dirname "$MARKER")"
+	date > "$MARKER"
+	sync
+	echo "[bizas] provisioning done"
+}
+
+case "$1" in
+	start)
+		start
+		;;
+	stop)
+		# Nada a fazer, de propósito. Um "docker stop" aqui (o rcK chama "stop" em todo reboot e poweroff) marcaria os
+		# containers como parados manualmente, e o --restart unless-stopped não os religaria no boot seguinte. Quem
+		# os para é o "S60dockerd stop": parados pelo próprio daemon ao desligar, eles voltam com o dockerd (pela
+		# documentação do Docker e pelo daemon/kill.go do moby; não testado na placa)
+		;;
+	restart)
+		start
+		;;
+	*)
+		echo "Usage: $0 {start|stop|restart}"
+		exit 1
+		;;
+esac

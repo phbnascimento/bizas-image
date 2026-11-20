@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bizas</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>Bizas</h1>
+  <span class="info">room <code id="room">—</code></span>
+  <span class="info">you <code id="me">—</code></span>
+  <span class="info">blocks <code id="height">0</code></span>
+  <span class="info">fingerprint <code id="fingerprint">—</code></span>
+  <span id="status">connecting…</span>
+</header>
+<main id="log"><p id="empty">No messages yet.</p></main>
+<form id="form" autocomplete="off">
+  <input id="text" maxlength="320" placeholder="Message (signed on this device)" disabled>
+  <span id="count">0/320</span>
+  <button id="send" disabled>Send</button>
+</form>
+<footer>
+  Your private key never leaves this browser. <a href="/chain">Download the chain</a>
+</footer>
+<script src="nacl-fast.min.js"></script>
+<script type="module" src="app.js"></script>
+</body>
+</html>

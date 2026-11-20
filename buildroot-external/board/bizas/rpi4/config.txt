@@ -1,0 +1,25 @@
+# config.txt da Raspberry Pi 4 em 64 bits: o board/raspberrypi4-64/config_4_64bit.txt do Buildroot 2026.05.1, mais
+# duas linhas de tempo de boot no fim. Sintaxe: https://www.raspberrypi.com/documentation/computers/config_txt.html
+
+start_file=start4.elf
+fixup_file=fixup4.dat
+
+kernel=Image
+
+# Não reserva borda na tela (o monitor mostra a resolução inteira)
+disable_overscan=1
+
+# Memória da GPU, em MB, nos modelos de 256, 512 ou 1024 MB
+gpu_mem_256=100
+gpu_mem_512=100
+gpu_mem_1024=100
+
+# UART0 para a console serial em ttyAMA0
+dtoverlay=miniuart-bt
+
+arm_64bit=1
+
+# Tempo de boot: sem a tela de arco-íris e sem espera antes de carregar o kernel. O initial_turbo fica de fora: força
+# clock máximo justamente enquanto a fonte estabiliza
+disable_splash=1
+boot_delay=0

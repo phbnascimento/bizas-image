@@ -1,0 +1,4 @@
+# Só o necessário para compilar, testes e vetores ficam fora da imagem de build
+**/*_test.go
+**/testdata
+**/*.test.js
