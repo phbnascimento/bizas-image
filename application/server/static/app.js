@@ -16,7 +16,7 @@ const ZERO_SIG = new Uint8Array(64);
 const MAX_RETRIES = 3;
 
 // --- identidade ------------------------------------------------------------
-// PENDENTE: o localStorage some se o usuário limpar os dados do site, e a identidade some junto (ver docs/protocol.md)
+// A seed fica no localStorage: limpar os dados do site apaga a identidade (ver docs/protocol.md)
 function loadKeyPair() {
   let seed = null;
   try {

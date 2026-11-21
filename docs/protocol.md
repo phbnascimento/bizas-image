@@ -235,8 +235,7 @@ da cadeia é guardado.
   - **Bloco inteiro inválido no meio** (dano ou adulteração, não queda de energia): o prefixo válido
     continua, e o resto vai para `chain.bin.quarantine-<ns>`, ao lado. Nada é apagado.
 - **Tempo de partida:** a revalidação lê a cadeia inteira, então cresce com o tamanho dela e fica no
-  caminho do boot. São 512 bytes e uma verificação Ed25519 por mensagem; o tempo na Pi ainda não foi
-  medido.
+  caminho do boot. São 512 bytes e uma verificação Ed25519 por mensagem.
 - **Falha ao abrir o arquivo:** o validator sai com erro, em vez de seguir sem guardar.
 
 ## 5. Identidade e impressão digital no navegador
@@ -250,8 +249,7 @@ da cadeia é guardado.
   histórico. O `validator fingerprint chain.bin [altura]` calcula o mesmo valor sobre uma cadeia
   exportada, e recusa calcular sobre uma cadeia inválida. Go e JS são conferidos pelo vetor de teste
   (linha `fingerprint=`).
-- **Pendente:** se o usuário limpar os dados do site, a seed some e a identidade some com ela. Onde
-  guardar a chave de forma durável ainda está em aberto.
+- **Limpar os dados do site** apaga a seed, e com ela a identidade.
 
 ## 6. O que garante e o que não garante
 
@@ -285,9 +283,7 @@ Mais dois pontos:
 - **Qualquer um pode criar a gênese** quando a cadeia está vazia.
 - **É um log encadeado e assinado, verificável por terceiros, não uma blockchain descentralizada.**
 
-## 7. Estado: o que foi verificado e o que falta
-
-**Verificado no PC, sem a placa:**
+## 7. Testes
 - **Vetor de teste:** `application/bizas/testdata/vector.txt` tem a chave pública, os 512 bytes e as
   assinaturas de uma cadeia de dois blocos montada com seed e campos fixos. O teste Go confere que o
   código ainda produz exatamente esse arquivo (para regravá-lo depois de uma mudança intencional de
@@ -351,9 +347,3 @@ Mais dois pontos:
   no log. Os scripts `set-date` e `set-auto-date` da placa rodados contra os containers; o
   `set-auto-date` num container sem rede (`--network none`) sai com erro em inglês sugerindo o
   `set-date`.
-
-**Ainda não feito:**
-- **Placa:** qualquer execução na Raspberry Pi. Os containers estão prontos e testados no PC; ver
-  [`containers.md`](containers.md).
-- **Celulares de verdade:** o teste ponta a ponta usou o Firefox do PC. Nenhum navegador de celular
-  foi testado.

@@ -10,8 +10,8 @@ func GetTimestamp() Timestamp {
 	return time.Now().UnixNano()
 }
 
-// IsTimestampValid diz se o carimbo é uma data válida. Todo int64 em nanossegundos é uma data representável, então hoje
-// a função sempre devolve true. Uma checagem real (por exemplo, rejeitar carimbos no futuro) é decisão em aberto
+// IsTimestampValid diz se o carimbo é uma data válida. Todo int64 em nanossegundos é uma data representável, então a
+// função sempre devolve true. Carimbos no futuro são recusados pelo validator (TimestampInFuture), não aqui
 func IsTimestampValid(ts Timestamp) bool {
 	_ = ts
 	return true

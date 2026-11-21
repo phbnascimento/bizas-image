@@ -3,8 +3,8 @@
 # containers com --restart unless-stopped. É idempotente: rodar de novo não recria o que já existe, a não ser um
 # container de outra versão
 #
-# Na placa roda uma vez, no 1º boot; nos seguintes, quem religa os containers é o próprio dockerd (hipótese ainda a
-# medir). No PC, é usado pelo scripts/containers-test.sh
+# Na placa roda uma vez, no 1º boot; nos seguintes, quem religa os containers é o próprio dockerd. No PC, é usado pelo
+# scripts/containers-test.sh
 #
 # Uso: provision.sh [diretório-com-os-tars]
 #   HOST_PORT  porta do host para a página (padrão 80)

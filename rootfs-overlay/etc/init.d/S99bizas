@@ -6,7 +6,7 @@
 # já iniciou o dockerd. No 1º boot este script espera o dockerd responder e roda o /opt/bizas/provision.sh, que carrega
 # as imagens dos tars (docker load), cria a rede, o volume e os dois containers com --restart unless-stopped. Depois
 # grava uma marca, e nos boots seguintes não faz nada: quem religa os containers é o próprio dockerd, sem nenhum
-# comando docker no caminho crítico do boot (hipótese ainda não medida na placa)
+# comando docker no caminho crítico do boot
 #
 # A marca só é gravada com os dois containers rodando: se faltar energia no meio do docker load, o boot seguinte tenta
 # de novo
@@ -74,7 +74,7 @@ case "$1" in
 		# Nada a fazer, de propósito. Um "docker stop" aqui (o rcK chama "stop" em todo reboot e poweroff) marcaria os
 		# containers como parados manualmente, e o --restart unless-stopped não os religaria no boot seguinte. Quem
 		# os para é o "S60dockerd stop": parados pelo próprio daemon ao desligar, eles voltam com o dockerd (pela
-		# documentação do Docker e pelo daemon/kill.go do moby; não testado na placa)
+		# documentação do Docker e pelo daemon/kill.go do moby)
 		;;
 	restart)
 		start

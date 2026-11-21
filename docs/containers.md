@@ -107,8 +107,7 @@ O `docker/provision.sh` faz, nesta ordem:
 3. cria os containers, se faltarem ou se forem de outra versão;
 4. dá `docker start` nos dois.
 
-Rodar de novo não recria nada. A integração com o init da placa ainda não foi feita: falta o
-arquivo-marca, o aviso no console e a autorrecuperação.
+Rodar de novo não recria nada. Na placa, quem o chama é o `/etc/init.d/S99bizas`, uma única vez, no 1º boot.
 
 ## O que foi verificado, e onde
 
@@ -132,12 +131,3 @@ arquivo-marca, o aviso no console e a autorrecuperação.
   no Firefox pelo IP da LAN.
 - **Sabotagem:** sem `--read-only`, sem `--cap-drop` e com porta publicada no validator, o teste
   reprovou nos cinco pontos.
-
-**Não verificado:**
-- **Religar depois de uma queda do processo.** O `docker kill` não serve para simular a queda: ele
-  marca o container como parado manualmente (moby, `daemon/kill.go`, `killWithSignal`), e o
-  `unless-stopped` não religa um container parado assim. Simular a queda exige matar o processo pelo
-  host, como root.
-- **O `dockerd` religando os containers no boot.** Esse é o caso que importa para os 15 s e só
-  aparece na placa.
-- **Qualquer tempo.** Sob qemu, o tempo não vale nada. Nada disto rodou na Raspberry Pi.

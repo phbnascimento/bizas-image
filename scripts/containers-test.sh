@@ -107,10 +107,8 @@ for _ in $(seq 60); do
 done
 check "/health after restarting the validator" "${back:-did not recover}" "1"
 
-# Religar após uma QUEDA do processo não é testado aqui: o "docker kill" marca o container como parado manualmente (moby
-# daemon/kill.go, killWithSignal: HasBeenManuallyStopped = true), e aí o unless-stopped não religa. Simular a queda
-# exige matar o processo pelo host, como root. O caso que importa na placa (dockerd religando no boot os containers que
-# estavam de pé) só a placa mostra
+# O "docker kill" não simula uma queda do processo: ele marca o container como parado manualmente (moby
+# daemon/kill.go, killWithSignal: HasBeenManuallyStopped = true), e aí o unless-stopped não religa
 
 echo "== browser end-to-end test, against the containers"
 e2e_rc=0

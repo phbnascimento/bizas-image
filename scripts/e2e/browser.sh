@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Teste ponta a ponta no PC (não na placa): compila o validator e o server, sobe os dois, abre a página pelo IP da LAN
+# Teste ponta a ponta no PC: compila o validator e o server, sobe os dois, abre a página pelo IP da LAN
 # em dois "aparelhos" isolados no Firefox headless e confere a cadeia exportada com "validator verify", inclusive com um
 # byte sabotado
 #

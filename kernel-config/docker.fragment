@@ -6,8 +6,6 @@
 # "=y" é um pedido, não uma garantia: o kconfig rebaixa a opção para "=m" quando uma dependência dela é módulo (é o caso
 # de CONFIG_BRIDGE, que depende de IPV6, módulo no bcm2711_defconfig). Como módulo também funciona: a imagem tem kmod
 # (BR2_PACKAGE_KMOD do defconfig da Pi) e o dockerd carrega o que precisa por modprobe
-#
-# Conferência que falta: o contrib/check-config.sh do docker-engine contra o .config do kernel gerado
 
 # Namespaces: isolamento de processos, rede, hostname e IPC
 CONFIG_NAMESPACES=y

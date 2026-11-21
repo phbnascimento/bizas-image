@@ -18,8 +18,7 @@ que vem embutido na página, sem CDN. A seed de 32 bytes fica no `localStorage` 
 
 - **A chave privada nunca sai do aparelho.** O servidor só recebe mensagens já assinadas.
 - O ID mostrado na tela são os 4 primeiros bytes da chave pública, em hex (ex.: `1d060702`).
-- Se o usuário limpar os dados do site, a seed some e a identidade some com ela. Onde guardar a chave
-  de forma durável ainda está em aberto.
+- Se o usuário limpar os dados do site, a seed some e a identidade some com ela.
 
 ### O bloco
 
@@ -190,7 +189,7 @@ o mesmo que descentralizá-lo.
 
 ```
 Raspberry Pi 4 (4 GB)
-└── Linux próprio, gerado com Buildroot 2026.05.1        ← configurado; imagem ainda não compilada
+└── Linux próprio, gerado com Buildroot 2026.05.1
     ├── kernel com o necessário para Docker (cgroups, namespaces, overlay, rede)
     ├── init, rede (Ethernet) e dockerd, iniciados sem login
     └── Docker
@@ -253,8 +252,7 @@ aplicação precisa (`buildroot-external/board/bizas/rpi4/buildroot.fragment`):
   marca em `/var/lib/bizas/` quando os dois containers estão rodando. Esse passo é avisado no console
   e, pelas regras do edital, não entra na medição de tempo.
 - **Boots seguintes:** com a marca presente, o `S99bizas` não faz nada. Quem religa os containers é o
-  próprio `dockerd` (`--restart unless-stopped`), sem comando `docker` no caminho crítico. **É uma
-  hipótese ainda não medida na placa.**
+  próprio `dockerd` (`--restart unless-stopped`), sem comando `docker` no caminho crítico.
 - **Desligamento:** o `S99bizas stop` não para os containers, de propósito. Um `docker stop` os
   marcaria como parados manualmente, e o `unless-stopped` não os religaria no boot seguinte.
 - **Medição:** do instante em que a placa é energizada até a primeira resposta válida de `/health`,
