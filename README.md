@@ -305,6 +305,27 @@ scripts/fetch-buildroot.sh
 scripts/configure-buildroot.sh
 ```
 
+### Imagem da Raspberry Pi
+
+```sh
+scripts/containers-build.sh arm64   # os tars dos containers que vão para a imagem
+scripts/build-image.sh              # compila; gera sdcard.img e bizas-rpi4.img.xz, hashes em evidence/
+scripts/check-image.sh              # confere a imagem pronta sem montar nada
+scripts/flash-sd.sh                 # grava no microSD e confere lendo de volta
+```
+
+- **`build-image.sh`:** carrega o `bizas_rpi4_defconfig` e compila. Gera `output/buildroot/images/sdcard.img` e a
+  versão compactada `output/images/bizas-rpi4.img.xz`, com o SHA-256 das duas em `evidence/hashes-image.txt`.
+- **`check-image.sh`:** lê o rootfs com `debugfs` e a partição de boot com `mtools`. Confere:
+  - `/opt/bizas` e os tars, contra `evidence/`;
+  - os scripts de init, as permissões e a senha do root;
+  - `config.txt` e `cmdline.txt`;
+  - o kernel, contra o fragmento do Docker e o `check-config.sh` do docker-engine (resultado em
+    `evidence/kernel-check-config.txt`);
+  - os scripts, passados pelo `sh` do BusyBox da própria imagem.
+- **`flash-sd.sh`:** pede o dispositivo digitado duas vezes e recusa o disco do sistema. Só grava a imagem cujo
+  hash está registrado e, no fim, lê o cartão de volta para comparar.
+
 Os scripts de teste recusam rodar se encontram portas, containers, rede ou volume já em uso, para não
 mexer em nada que não criaram.
 
