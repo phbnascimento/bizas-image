@@ -24,7 +24,7 @@ publicada no host.
 
 ## Imagens (§6.4 e §6.8)
 
-- **Tag fixa:** `bizas-validator:0.1.0` e `bizas-server:0.1.0`. Nunca `latest`. A versão fica só em
+- **Tag fixa:** `bizas-validator:0.1` e `bizas-server:0.1`. Nunca `latest`. A versão fica só em
   `docker/version.env`.
 - **Imagem final:** `FROM scratch`, com o binário `/app` e nada mais. Sem shell e sem bibliotecas.
 - **Build:** usa `golang:1.27.3-alpine`, fixada pelo digest do índice multi-arquitetura. O compilador

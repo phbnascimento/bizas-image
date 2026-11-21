@@ -31,6 +31,9 @@ for img in "$IMG_VALIDATOR" "$IMG_SERVER"; do
   python3 -I "$ROOT/scripts/lib/check-image-tar.py" "$tar" arm64 || die "$tar is not a linux/arm64 image"
 done
 
+# O Buildroot nunca apaga de TARGET_DIR o que sobrou de um build anterior: sem isto, os tars de uma versão antiga
+# ficariam em /opt/bizas ao lado dos novos
+rm -rf "$DEST"
 mkdir -p "$DEST"
 for img in "$IMG_VALIDATOR" "$IMG_SERVER"; do
   install -m 0644 "$TARS/$img-$VERSION.tar" "$DEST/"
