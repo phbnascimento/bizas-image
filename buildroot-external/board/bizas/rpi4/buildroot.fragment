@@ -2,7 +2,7 @@
 # scripts/configure-buildroot.sh (merge_config + olddefconfig), que confere cada linha abaixo no .config e grava o
 # resultado em buildroot-external/configs/bizas_rpi4_defconfig
 #
-# Sistema mínimo (§5): só o que a aplicação precisa. Rede, init e kernel vêm do defconfig da Pi
+# Sistema mínimo: só o que a aplicação precisa. Rede, init e kernel vêm do defconfig da Pi
 
 # System configuration
 BR2_TARGET_GENERIC_HOSTNAME="bizas"

@@ -19,7 +19,7 @@ HOST_PORT="${HOST_PORT:-80}"
 info() { echo "[provision] $*"; }
 die() { echo "[provision] ERROR: $*" >&2; exit 1; }
 
-# Privilégio mínimo (§6.7): sem capabilities, sem escalar privilégio, rootfs somente leitura e poucos processos. O
+# Privilégio mínimo: sem capabilities, sem escalar privilégio, rootfs somente leitura e poucos processos. O
 # usuário 65532 vem do Dockerfile
 COMMON_OPTS="--restart unless-stopped --read-only --cap-drop ALL --security-opt no-new-privileges --pids-limit 64"
 

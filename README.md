@@ -1,14 +1,110 @@
 # Bizas
 
-Chat em que cada mensagem é **assinada no aparelho de quem escreve** e **encadeada à anterior**,
-formando um histórico que qualquer pessoa pode verificar. Roda numa **Raspberry Pi 4** com uma imagem
-Linux própria, gerada com Buildroot, e com a aplicação em containers Docker. Os participantes abrem o
-IP da placa no navegador; não é preciso instalar nada.
+Imagem Linux própria para a **Raspberry Pi 4**, gerada com **Buildroot** 2026.05.1, que ao ligar sobe sozinha a
+aplicação em **containers Docker**: o **Bizas**, um chat em que cada mensagem é **assinada no aparelho de quem
+escreve** e **encadeada à anterior**, formando um histórico que qualquer pessoa pode verificar. Os participantes
+abrem o IP da placa no navegador; não é preciso instalar nada.
 
-Projeto final de Sistemas Embarcados (UNISANTA, 2026). A meta central do edital é a aplicação
+Projeto final de Sistemas Embarcados (UNISANTA, 2026). A meta central é a aplicação
 **responder em menos de 15 s** depois que a placa é ligada.
 
-## Como o chat funciona
+## A imagem e sua arquitetura
+
+```
+Raspberry Pi 4 (4 GB)
+└── Linux próprio, gerado com Buildroot 2026.05.1
+    ├── kernel com o necessário para Docker (cgroups, namespaces, overlay, rede)
+    ├── init, rede (Ethernet) e dockerd, iniciados sem login
+    └── Docker
+        └── rede bizas-net (definida pelo usuário)
+            ├── bizas-validator  sem porta no host · volume bizas-data em /data
+            └── bizas-server     porta 80 do host → 5000 · sem volume
+```
+
+### Os dois containers
+
+Cada container tem um único binário Go estático, numa imagem `FROM scratch` (sem shell, sem
+bibliotecas): cerca de 2,8 MB e 3,0 MB em arm64.
+
+| | `bizas-validator` | `bizas-server` |
+|---|---|---|
+| papel | único dono da cadeia: confere, grava e serve o histórico | página, WebSocket e repasse ao validator |
+| porta no host | **nenhuma** | 80 → 5000 |
+| volume | `bizas-data` em `/data` | **nenhum** |
+
+**Por que dois containers: privilégio mínimo.** O server é o único exposto na rede e não tem volume.
+Se ele for comprometido, não consegue reescrever a cadeia; só pode pedir ao validator que acrescente
+blocos, e o validator confere a assinatura de cada um.
+
+Opções aplicadas aos dois containers:
+- usuário não-root (65532);
+- rootfs somente leitura;
+- `--cap-drop ALL` e `no-new-privileges`;
+- `--restart unless-stopped`;
+- healthcheck a cada 5 s, pelo próprio binário (`/app health`).
+
+Não há modo privilegiado, nem `docker.sock` montado, nem dispositivo repassado. Detalhes e
+justificativas em [docs/containers.md](docs/containers.md).
+
+### A imagem Buildroot
+
+A configuração parte do `raspberrypi4_64_defconfig` do Buildroot 2026.05.1 e acrescenta só o que a
+aplicação precisa (`buildroot-external/board/bizas/rpi4/buildroot.fragment`):
+
+- **Docker:** `docker-engine` (dockerd, containerd, runc, iptables) e `docker-cli`.
+- **Kernel:** o fragmento `kernel-config/docker.fragment` garante namespaces, cgroups, veth, bridge,
+  netfilter/NAT e overlayfs.
+- **rootfs ext4 de 1024 MB**, porque os 120 MB de fábrica não comportam o Docker e as imagens.
+- **`config.txt` e `cmdline.txt` próprios:** o `config.txt` de 64 bits de fábrica, mais
+  `disable_splash=1` e `boot_delay=0`; o `cmdline.txt` com `quiet loglevel=3`.
+- **Acesso de manutenção:** pelo console (HDMI ou serial), usuário `root`, senha `bizasprotocol`. O
+  Buildroot grava só o hash da senha (SHA-256 crypt) no `/etc/shadow`.
+- **A aplicação:** o `post-build.sh` copia para `/opt/bizas` os tars arm64 dos containers, o
+  `provision.sh` e o `version.env`. Antes, confere que cada tar tem o SHA-256 registrado em
+  `evidence/hashes-containers.txt` e que é mesmo uma imagem `linux/arm64`.
+
+`scripts/configure-buildroot.sh` aplica o fragmento, confere no `.config` cada opção pedida e grava
+`buildroot-external/configs/bizas_rpi4_defconfig`.
+
+### Boot e provisionamento
+
+- **Ordem:** o init do BusyBox roda os scripts de `/etc/init.d`. O `S60dockerd` inicia o Docker, e o
+  `S99bizas` cuida da aplicação.
+- **1º boot:** o `S99bizas` espera o `dockerd` responder e roda o `/opt/bizas/provision.sh`. Ele
+  carrega as imagens com `docker load`, cria a rede, o volume e os containers, e o script grava uma
+  marca em `/var/lib/bizas/` quando os dois containers estão rodando. Esse passo é avisado no console
+  e não entra na medição do tempo de boot, que é feita depois do provisionamento.
+- **Boots seguintes:** com a marca presente, o `S99bizas` não faz nada. Quem religa os containers é o
+  próprio `dockerd` (`--restart unless-stopped`), sem comando `docker` no caminho crítico.
+- **Desligamento:** o `S99bizas stop` não para os containers, de propósito. Um `docker stop` os
+  marcaria como parados manualmente, e o `unless-stopped` não os religaria no boot seguinte.
+- **Medição:** do instante em que a placa é energizada até a primeira resposta válida de `/health`,
+  vista de outro equipamento, em três boots frios seguidos (`scripts/measure-boot.sh`).
+
+### Gerar, conferir e gravar a imagem
+
+```sh
+scripts/fetch-buildroot.sh          # obtém o Buildroot 2026.05.1 e confere o SHA-256
+scripts/configure-buildroot.sh      # gera e confere o defconfig (não compila nada)
+scripts/containers-build.sh arm64   # os tars dos containers que vão para a imagem
+scripts/build-image.sh              # compila; gera sdcard.img e bizas-rpi4.img.xz, hashes em evidence/
+scripts/check-image.sh              # confere a imagem pronta sem montar nada
+scripts/flash-sd.sh                 # grava no microSD e confere lendo de volta
+```
+
+- **`build-image.sh`:** carrega o `bizas_rpi4_defconfig` e compila. Gera `output/buildroot/images/sdcard.img` e a
+  versão compactada `output/images/bizas-rpi4.img.xz`, com o SHA-256 das duas em `evidence/hashes-image.txt`.
+- **`check-image.sh`:** lê o rootfs com `debugfs` e a partição de boot com `mtools`. Confere:
+  - `/opt/bizas` e os tars, contra `evidence/`;
+  - os scripts de init, as permissões e a senha do root;
+  - `config.txt` e `cmdline.txt`;
+  - o kernel, contra o fragmento do Docker e o `check-config.sh` do docker-engine (resultado em
+    `evidence/kernel-check-config.txt`);
+  - os scripts, passados pelo `sh` do BusyBox da própria imagem.
+- **`flash-sd.sh`:** pede o dispositivo digitado duas vezes e recusa o disco do sistema. Só grava a imagem cujo
+  hash está registrado e, no fim, lê o cartão de volta para comparar.
+
+## O Bizas: chat assinado e encadeado
 
 ### Identidade
 
@@ -185,97 +281,24 @@ na altura que viu.
 Duas placas montadas a partir deste repositório têm cadeias independentes. Reproduzir o sistema não é
 o mesmo que descentralizá-lo.
 
-## Arquitetura da imagem
-
-```
-Raspberry Pi 4 (4 GB)
-└── Linux próprio, gerado com Buildroot 2026.05.1
-    ├── kernel com o necessário para Docker (cgroups, namespaces, overlay, rede)
-    ├── init, rede (Ethernet) e dockerd, iniciados sem login
-    └── Docker
-        └── rede bizas-net (definida pelo usuário)
-            ├── bizas-validator  sem porta no host · volume bizas-data em /data
-            └── bizas-server     porta 80 do host → 5000 · sem volume
-```
-
-### Os dois containers
-
-Cada container tem um único binário Go estático, numa imagem `FROM scratch` (sem shell, sem
-bibliotecas): cerca de 2,8 MB e 3,0 MB em arm64.
-
-| | `bizas-validator` | `bizas-server` |
-|---|---|---|
-| papel | único dono da cadeia: confere, grava e serve o histórico | página, WebSocket e repasse ao validator |
-| porta no host | **nenhuma** | 80 → 5000 |
-| volume | `bizas-data` em `/data` | **nenhum** |
-
-**Por que dois containers: privilégio mínimo.** O server é o único exposto na rede e não tem volume.
-Se ele for comprometido, não consegue reescrever a cadeia; só pode pedir ao validator que acrescente
-blocos, e o validator confere a assinatura de cada um.
-
-Opções aplicadas aos dois containers:
-- usuário não-root (65532);
-- rootfs somente leitura;
-- `--cap-drop ALL` e `no-new-privileges`;
-- `--restart unless-stopped`;
-- healthcheck a cada 5 s, pelo próprio binário (`/app health`).
-
-Não há modo privilegiado, nem `docker.sock` montado, nem dispositivo repassado. Detalhes e
-justificativas em [docs/containers.md](docs/containers.md).
-
-### A imagem Buildroot
-
-A configuração parte do `raspberrypi4_64_defconfig` do Buildroot 2026.05.1 e acrescenta só o que a
-aplicação precisa (`buildroot-external/board/bizas/rpi4/buildroot.fragment`):
-
-- **Docker:** `docker-engine` (dockerd, containerd, runc, iptables) e `docker-cli`.
-- **Kernel:** o fragmento `kernel-config/docker.fragment` garante namespaces, cgroups, veth, bridge,
-  netfilter/NAT e overlayfs.
-- **rootfs ext4 de 1024 MB**, porque os 120 MB de fábrica não comportam o Docker e as imagens.
-- **`config.txt` e `cmdline.txt` próprios:** o `config.txt` de 64 bits de fábrica, mais
-  `disable_splash=1` e `boot_delay=0`; o `cmdline.txt` com `quiet loglevel=3`.
-- **Acesso de manutenção:** pelo console (HDMI ou serial), usuário `root`, senha `bizasprotocol`. O
-  Buildroot grava só o hash da senha (SHA-256 crypt) no `/etc/shadow`.
-- **A aplicação:** o `post-build.sh` copia para `/opt/bizas` os tars arm64 dos containers, o
-  `provision.sh` e o `version.env`. Antes, confere que cada tar tem o SHA-256 registrado em
-  `evidence/hashes-containers.txt` e que é mesmo uma imagem `linux/arm64`.
-
-`scripts/configure-buildroot.sh` aplica o fragmento, confere no `.config` cada opção pedida e grava
-`buildroot-external/configs/bizas_rpi4_defconfig`.
-
-### Boot e provisionamento
-
-- **Ordem:** o init do BusyBox roda os scripts de `/etc/init.d`. O `S60dockerd` inicia o Docker, e o
-  `S99bizas` cuida da aplicação.
-- **1º boot:** o `S99bizas` espera o `dockerd` responder e roda o `/opt/bizas/provision.sh`. Ele
-  carrega as imagens com `docker load`, cria a rede, o volume e os containers, e o script grava uma
-  marca em `/var/lib/bizas/` quando os dois containers estão rodando. Esse passo é avisado no console
-  e, pelas regras do edital, não entra na medição de tempo.
-- **Boots seguintes:** com a marca presente, o `S99bizas` não faz nada. Quem religa os containers é o
-  próprio `dockerd` (`--restart unless-stopped`), sem comando `docker` no caminho crítico.
-- **Desligamento:** o `S99bizas stop` não para os containers, de propósito. Um `docker stop` os
-  marcaria como parados manualmente, e o `unless-stopped` não os religaria no boot seguinte.
-- **Medição:** do instante em que a placa é energizada até a primeira resposta válida de `/health`,
-  vista de outro equipamento, em três boots frios seguidos (`scripts/measure-boot.sh`).
-
 ## Estrutura do repositório
 
 ```
+buildroot-external/     BR2_EXTERNAL do projeto
+├── configs/            bizas_rpi4_defconfig (gerado por scripts/configure-buildroot.sh)
+└── board/bizas/rpi4/   fragmento do Buildroot, config.txt, cmdline.txt e post-build.sh
+kernel-config/          fragmento de kernel para o Docker
+rootfs-overlay/         arquivos copiados para o rootfs (o init S99bizas e os comandos set-date)
+docker/                 Dockerfiles, versão das imagens e provisionamento
 application/            código da aplicação (módulo Go)
 ├── bizas/              biblioteca comum: bloco, assinatura, cadeia, API do validator e o vetor de teste
 ├── validator/          binário do validator (servir, health, verify)
 ├── server/             binário do server (HTTP, WebSocket) e a página embutida em static/
 └── vendor/             dependências Go, para o build não precisar de rede
-assets/                 imagens do README
-buildroot-external/     BR2_EXTERNAL do projeto
-├── configs/            bizas_rpi4_defconfig (gerado por scripts/configure-buildroot.sh)
-└── board/bizas/rpi4/   fragmento do Buildroot, config.txt, cmdline.txt e post-build.sh
-docker/                 Dockerfiles, versão das imagens e provisionamento
-docs/                   protocolo e containers
-evidence/               hashes gerados pelos scripts
-kernel-config/          fragmento de kernel para o Docker
-rootfs-overlay/         arquivos copiados para o rootfs (o init S99bizas)
 scripts/                build, testes, medição de boot e utilitários
+evidence/               hashes gerados pelos scripts
+docs/                   protocolo e containers
+assets/                 imagens do README
 ```
 
 O código do Buildroot não é versionado: `scripts/fetch-buildroot.sh` baixa o tarball oficial
@@ -299,32 +322,7 @@ scripts/e2e/browser.sh
 # containers: build, conferência da arquitetura e teste completo
 scripts/containers-build.sh amd64 && scripts/containers-test.sh amd64
 scripts/containers-build.sh arm64          # imagens para a Pi; hashes em evidence/
-
-# Buildroot: obter o 2026.05.1 (confere o SHA-256) e gerar e conferir o defconfig (não compila nada)
-scripts/fetch-buildroot.sh
-scripts/configure-buildroot.sh
 ```
-
-### Imagem da Raspberry Pi
-
-```sh
-scripts/containers-build.sh arm64   # os tars dos containers que vão para a imagem
-scripts/build-image.sh              # compila; gera sdcard.img e bizas-rpi4.img.xz, hashes em evidence/
-scripts/check-image.sh              # confere a imagem pronta sem montar nada
-scripts/flash-sd.sh                 # grava no microSD e confere lendo de volta
-```
-
-- **`build-image.sh`:** carrega o `bizas_rpi4_defconfig` e compila. Gera `output/buildroot/images/sdcard.img` e a
-  versão compactada `output/images/bizas-rpi4.img.xz`, com o SHA-256 das duas em `evidence/hashes-image.txt`.
-- **`check-image.sh`:** lê o rootfs com `debugfs` e a partição de boot com `mtools`. Confere:
-  - `/opt/bizas` e os tars, contra `evidence/`;
-  - os scripts de init, as permissões e a senha do root;
-  - `config.txt` e `cmdline.txt`;
-  - o kernel, contra o fragmento do Docker e o `check-config.sh` do docker-engine (resultado em
-    `evidence/kernel-check-config.txt`);
-  - os scripts, passados pelo `sh` do BusyBox da própria imagem.
-- **`flash-sd.sh`:** pede o dispositivo digitado duas vezes e recusa o disco do sistema. Só grava a imagem cujo
-  hash está registrado e, no fim, lê o cartão de volta para comparar.
 
 Os scripts de teste recusam rodar se encontram portas, containers, rede ou volume já em uso, para não
 mexer em nada que não criaram.

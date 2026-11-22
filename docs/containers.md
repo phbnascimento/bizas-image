@@ -15,14 +15,14 @@ O protocolo entre os dois está em [`protocol.md`](protocol.md).
 | [`scripts/containers-build.sh`](../scripts/containers-build.sh) | build, `docker save`, conferência da arquitetura dentro do tar e SHA-256 em `evidence/` |
 | [`scripts/containers-test.sh`](../scripts/containers-test.sh) | testa no PC tudo o que este documento afirma |
 
-## Por que dois containers (§6.2)
+## Por que dois containers
 
 A razão é o **privilégio mínimo**. O server é o único exposto na rede e não tem volume nenhum. Se ele
 for comprometido, não consegue reescrever a cadeia: só pode pedir ao validator que acrescente blocos,
 e o validator confere a assinatura de cada um. Já o validator, o único que grava, não tem porta
 publicada no host.
 
-## Imagens (§6.4 e §6.8)
+## Imagens
 
 - **Tag fixa:** `bizas-validator:0.1` e `bizas-server:0.1`. Nunca `latest`. A versão fica só em
   `docker/version.env`.
@@ -45,7 +45,7 @@ O tar é menor que o binário porque a camada vai comprimida. O SHA-256 de cada 
 `containers-build.sh` em `evidence/hashes-containers.txt`. O hash identifica o artefato, mas não
 prova reprodutibilidade.
 
-## Rede, portas e volume (§6.6)
+## Rede, portas e volume
 
 | | validator | server |
 |---|---|---|
@@ -72,7 +72,7 @@ prova reprodutibilidade.
   sobrevive à recriação do container e a reboots, e um pedaço final incompleto (queda de energia no meio
   da escrita) é descartado na partida. Detalhes em [protocol.md](protocol.md#persistência).
 
-## Privilégios (§6.7)
+## Privilégios
 
 Opções aplicadas aos dois containers pelo `provision.sh`:
 
@@ -88,7 +88,7 @@ Opções aplicadas aos dois containers pelo `provision.sh`:
   não há nada a justificar nesse ponto.
 - **Única exceção ao somente leitura:** o volume do validator.
 
-## Reinicialização e saúde (§6.5)
+## Reinicialização e saúde
 
 - **Reinicialização:** `--restart unless-stopped` nos dois.
 - **Saúde:** o `HEALTHCHECK` chama o próprio binário (`/app health`), porque `FROM scratch` não tem
@@ -99,7 +99,7 @@ Opções aplicadas aos dois containers pelo `provision.sh`:
   início. Enquanto o validator não responde, o `/health` dá 503 e o WebSocket fecha com "validator
   unavailable".
 
-## Provisionamento no 1º boot (§6.8.i)
+## Provisionamento no 1º boot
 
 O `docker/provision.sh` faz, nesta ordem:
 1. `docker load` das imagens que faltarem;

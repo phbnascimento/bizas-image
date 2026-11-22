@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Obtém o Buildroot exigido pelo edital (2026.05.1) e o extrai em buildroot/, que o Git ignora
+# Obtém o Buildroot 2026.05.1 e o extrai em buildroot/, que o Git ignora
 #
 # O tarball oficial é baixado para output/dl/ (também ignorado) e só é extraído se o SHA-256 bater com o fixado aqui,
 # que é o publicado em https://buildroot.org/downloads/buildroot-2026.05.1.tar.gz.sign. Se o tarball já estiver em

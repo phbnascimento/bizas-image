@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Cronometra o boot da placa visto de OUTRO equipamento (regra do §7 do edital): do Enter (apertado no instante em que a
-# fonte é ligada) até o 1º HTTP 200
+# Cronometra o boot da placa visto de OUTRO equipamento: do Enter (apertado no instante em que a fonte é ligada) até o
+# 1º HTTP 200
 #
 # Uso: measure-boot.sh <ip-ou-url-base> [arquivo.csv] [caminho]   (caminho padrão: /health)
 # Cada tentativa é anexada ao CSV, inclusive as reprovadas

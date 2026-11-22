@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Gera a configuração do Buildroot do Bizas de forma reproduzível e confere o resultado:
-#   1. confere que buildroot/ é o Buildroot 2026.05.1 exigido pelo edital
+#   1. confere que buildroot/ é o Buildroot 2026.05.1
 #   2. carrega o raspberrypi4_64_defconfig e mescla buildroot-external/board/bizas/rpi4/buildroot.fragment
 #   3. confere, no .config, cada opção do fragmento e as que o docker-engine seleciona
 #   4. grava buildroot-external/configs/bizas_rpi4_defconfig (savedefconfig)
