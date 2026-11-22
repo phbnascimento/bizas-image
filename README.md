@@ -327,6 +327,23 @@ scripts/containers-build.sh arm64          # imagens para a Pi; hashes em eviden
 Os scripts de teste recusam rodar se encontram portas, containers, rede ou volume já em uso, para não
 mexer em nada que não criaram.
 
+### Abrir a página no PC
+
+```sh
+scripts/dev-server.sh               # compila e sobe; para com Ctrl+C
+scripts/dev-server.sh --port 9000   # outra porta (padrão 8080)
+scripts/dev-server.sh --fresh       # começa com a cadeia vazia
+```
+
+O script roda o validator e o server como processos locais, sem Docker, e escuta em todas as interfaces. Ao subir,
+mostra os endereços (`http://127.0.0.1:8080` e o IP de cada rede do PC), que também abrem em outro aparelho da mesma
+rede. Se o outro aparelho não conectar, é o firewall do PC bloqueando a porta.
+
+- **O que funciona:** a página, o chat, a cadeia gravada em `output/dev/data/chain.bin`, a impressão digital, o
+  `/chain` e o `validator verify`.
+- **O que não existe fora da placa:** os containers, o init e os comandos `set-date` e `set-auto-date` em `/usr/bin`.
+  O script mostra, ao subir, como chamá-los pelo binário (`ADMIN_ADDR=127.0.0.1:8081 output/dev/server set-date …`).
+
 ## Documentação
 
 - [docs/protocol.md](docs/protocol.md): formato do bloco, regras de validade, rotas, WebSocket e o que
