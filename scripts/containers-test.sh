@@ -157,7 +157,7 @@ chain_sum() { curl -sf "http://127.0.0.1:$PORT/chain" | sha256sum | cut -d' ' -f
 echo "== persistence: restarting the validator keeps the chain"
 BEFORE_SIZE="$(curl -sf "http://127.0.0.1:$PORT/chain" | wc -c)"
 BEFORE="$(chain_sum)"
-check "chain size before restart (4 blocks from the browser test)" "$BEFORE_SIZE" "2048"
+check "chain size before restart (6 blocks from the browser test)" "$BEFORE_SIZE" "3072"
 docker restart "$V" >/dev/null
 wait_health || fail "validator did not come back after restart"
 check "chain after validator restart" "$(chain_sum)" "$BEFORE"
@@ -165,12 +165,12 @@ check "chain after validator restart" "$(chain_sum)" "$BEFORE"
 echo "== power loss in the middle of a write: an incomplete tail is dropped on start"
 docker run --rm -v "$VOLUME:/data" "$GOLANG_IMAGE" sh -c 'head -c 300 /dev/urandom >> /data/chain.bin'
 check "chain.bin size with 300 stray bytes" \
-  "$(docker run --rm -v "$VOLUME:/data" "$GOLANG_IMAGE" stat -c %s /data/chain.bin)" "2348"
+  "$(docker run --rm -v "$VOLUME:/data" "$GOLANG_IMAGE" stat -c %s /data/chain.bin)" "$((BEFORE_SIZE + 300))"
 docker restart "$V" >/dev/null
 wait_health || fail "validator did not come back after the stray bytes"
 check "chain after dropping the incomplete tail" "$(chain_sum)" "$BEFORE"
 check "chain.bin size after start" \
-  "$(docker run --rm -v "$VOLUME:/data" "$GOLANG_IMAGE" stat -c %s /data/chain.bin)" "2048"
+  "$(docker run --rm -v "$VOLUME:/data" "$GOLANG_IMAGE" stat -c %s /data/chain.bin)" "$BEFORE_SIZE"
 if docker logs "$V" 2>&1 | grep -q 'dropped an incomplete block'; then
   ok "validator logged the dropped tail"
 else
