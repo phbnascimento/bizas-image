@@ -50,7 +50,7 @@ if command -v openssl >/dev/null; then
     && ok "root password is bizasprotocol" || fail "root password hash does not match bizasprotocol"
 fi
 
-for f in etc/init.d/S99bizas usr/bin/set-date usr/bin/set-auto-date; do
+for f in etc/init.d/S99bizas usr/bin/set-date usr/bin/set-auto-date usr/bin/reset-chat; do
   m="$(mode "/$f")"
   [ "$m" = 755 ] && ok "/$f mode 755" || fail "/$f mode ${m:-missing}"
   [ "$(rd "cat /$f")" = "$(cat "$ROOT/rootfs-overlay/$f")" ] && ok "/$f equals the overlay" || fail "/$f differs from the overlay"
@@ -74,7 +74,7 @@ done
 echo "== init scripts parsed by the image's own BusyBox sh (qemu)"
 BB="$OUT/target/bin/busybox"
 if [ -x "$BB" ] && [ -e /proc/sys/fs/binfmt_misc/qemu-aarch64 ]; then
-  for f in etc/init.d/S99bizas usr/bin/set-date usr/bin/set-auto-date opt/bizas/provision.sh; do
+  for f in etc/init.d/S99bizas usr/bin/set-date usr/bin/set-auto-date usr/bin/reset-chat opt/bizas/provision.sh; do
     QEMU_LD_PREFIX="$OUT/target" "$BB" sh -n "$OUT/target/$f" && ok "busybox sh -n /$f" || fail "busybox sh -n /$f"
   done
 else

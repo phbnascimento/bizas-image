@@ -5,6 +5,8 @@
 //	validator health                          HEALTHCHECK do Docker: 0 se /health responde 200
 //	validator verify <chain.bin>              confere uma cadeia baixada de /chain, sem a Pi
 //	validator fingerprint <chain.bin> [N]     impressão digital da cadeia na altura N (padrão: a cabeça)
+//	validator reset                           arquiva DATA_DIR/chain.bin como chain.bin.reset-<ns> para um chat novo;
+//	                                          roda com o validator parado (é o que o reset-chat da placa chama)
 package main
 
 import (
@@ -14,11 +16,12 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"time"
 
 	"github.com/phbnascimento/bizas-image/application/bizas"
 )
 
-const usage = "usage: validator [health | verify <chain.bin> | fingerprint <chain.bin> [height]]"
+const usage = "usage: validator [health | verify <chain.bin> | fingerprint <chain.bin> [height] | reset]"
 
 func main() {
 	addr := env("ADDR", ":8081")
@@ -30,6 +33,8 @@ func main() {
 			os.Exit(verify(os.Args[2]))
 		case os.Args[1] == "fingerprint" && (len(os.Args) == 3 || len(os.Args) == 4):
 			os.Exit(fingerprint(os.Args[2], os.Args[3:]))
+		case os.Args[1] == "reset" && len(os.Args) == 2:
+			os.Exit(reset(filepath.Join(env("DATA_DIR", "/data"), "chain.bin")))
 		}
 		fmt.Fprintln(os.Stderr, usage)
 		os.Exit(2)
@@ -105,6 +110,22 @@ func fingerprint(path string, args []string) int {
 		return 2
 	}
 	fmt.Printf("#%d %s\n", height, fp)
+	return 0
+}
+
+// reset arquiva a cadeia para começar um chat novo. Nada é apagado: o arquivo antigo fica ao lado, e o validator
+// verify o confere como qualquer cadeia exportada
+func reset(path string) int {
+	dest, size, err := bizas.ArchiveChain(path, time.Now())
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "reset: could not archive the chain:", err)
+		return 1
+	}
+	if dest == "" {
+		fmt.Println("reset: no messages to archive; the chain is already empty")
+		return 0
+	}
+	fmt.Printf("reset: archived the chain (%d bytes) as %s\n", size, dest)
 	return 0
 }
 

@@ -253,6 +253,22 @@ set-auto-date                                # consulta a hora pela rede (SNTP);
 - **O que muda e o que não muda:** a flag só afeta como a hora digitada é lida. A página continua
   mostrando a hora no fuso de cada aparelho.
 
+### Começar um chat novo
+
+O `reset-chat`, como root no console da placa, começa um chat com a cadeia vazia:
+
+```sh
+reset-chat          # pede para digitar "reset" antes de continuar
+reset-chat --yes    # sem pergunta
+```
+
+- **Nada é apagado:** a cadeia atual é renomeada para `chain.bin.reset-<ns>`, ao lado da nova, no volume
+  `bizas-data`, e continua conferível com `validator verify`. Com a cadeia já vazia, nada é arquivado.
+- **Como:** o comando para o validator, roda `validator reset` num container descartável da mesma imagem, sem
+  rede, religa o validator e reinicia o server. As páginas abertas reconectam sozinhas e recebem o histórico
+  vazio; a próxima mensagem é um gênese novo, com um N novo para a prova de trabalho.
+- **Hora real:** depois do reset, a hora informada com `set-date` ou `set-auto-date` precisa ser informada de novo.
+
 ### Onde a cadeia fica guardada
 
 No validator, em `/data/chain.bin`, no volume Docker `bizas-data`. O arquivo guarda só a cadeia, nos
@@ -327,11 +343,11 @@ buildroot-external/     BR2_EXTERNAL do projeto
 ├── configs/            bizas_rpi4_defconfig (gerado por scripts/configure-buildroot.sh)
 └── board/bizas/rpi4/   fragmento do Buildroot, config.txt, cmdline.txt e post-build.sh
 kernel-config/          fragmento de kernel para o Docker
-rootfs-overlay/         arquivos copiados para o rootfs (o init S99bizas e os comandos set-date)
+rootfs-overlay/         arquivos copiados para o rootfs (o init S99bizas e os comandos de manutenção)
 docker/                 Dockerfiles, versão das imagens e provisionamento
 application/            código da aplicação (módulo Go)
 ├── bizas/              biblioteca comum: bloco, assinatura, cadeia, API do validator e o vetor de teste
-├── validator/          binário do validator (servir, health, verify)
+├── validator/          binário do validator (servir, health, verify, fingerprint, reset)
 ├── server/             binário do server (HTTP, WebSocket) e a página embutida em static/
 └── vendor/             dependências Go, para o build não precisar de rede
 scripts/                build, testes, medição de boot e utilitários
@@ -380,8 +396,9 @@ rede. Se o outro aparelho não conectar, é o firewall do PC bloqueando a porta.
 
 - **O que funciona:** a página, o chat, a cadeia gravada em `output/dev/data/chain.bin`, a impressão digital, o
   `/chain` e o `validator verify`.
-- **O que não existe fora da placa:** os containers, o init e os comandos `set-date` e `set-auto-date` em `/usr/bin`.
-  O script mostra, ao subir, como chamá-los pelo binário (`ADMIN_ADDR=127.0.0.1:8081 output/dev/server set-date …`).
+- **O que não existe fora da placa:** os containers, o init e os comandos `set-date`, `set-auto-date` e `reset-chat`
+  em `/usr/bin`. O script mostra, ao subir, como chamar os dois primeiros pelo binário
+  (`ADMIN_ADDR=127.0.0.1:8081 output/dev/server set-date …`); no lugar do `reset-chat`, o `--fresh` começa com a cadeia vazia (e apaga a do PC).
 
 ## Documentação
 

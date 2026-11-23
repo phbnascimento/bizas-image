@@ -258,6 +258,12 @@ da cadeia é guardado.
 - **Tempo de partida:** a revalidação lê a cadeia inteira, então cresce com o tamanho dela e fica no
   caminho do boot. São 512 bytes e uma verificação Ed25519 por mensagem.
 - **Falha ao abrir o arquivo:** o validator sai com erro, em vez de seguir sem guardar.
+- **Chat novo (`reset-chat`):** o comando de manutenção da placa para o validator e roda `validator reset`
+  num container descartável da mesma imagem, sem rede, com o volume montado. O `validator reset` renomeia
+  `chain.bin` para `chain.bin.reset-<ns>`, ao lado, e faz `fsync` do diretório; sem cadeia, ou com o arquivo
+  vazio, não muda nada. O validator religado cria um `chain.bin` vazio e aceita um gênese novo, com um N novo.
+  Nada é apagado: o arquivo antigo continua conferível com `validator verify`. O comando reinicia também o
+  server, o que fecha os WebSockets abertos; as páginas reconectam e recebem o histórico vazio.
 
 ## 5. Identidade e impressão digital no navegador
 
@@ -382,4 +388,6 @@ Mais dois pontos:
   soltos no fim do `chain.bin`, como numa queda de energia, são descartados na partida, com registro
   no log. Os scripts `set-date` e `set-auto-date` da placa rodados contra os containers; o
   `set-auto-date` num container sem rede (`--network none`) sai com erro em inglês sugerindo o
-  `set-date`.
+  `set-date`. O `reset-chat --yes` arquiva a cadeia de 6 blocos, a `/chain` volta vazia, o arquivo
+  `chain.bin.reset-<ns>` passa no `validator verify`, e um segundo `reset-chat` com a cadeia vazia não arquiva nada;
+  sem terminal e sem `--yes`, o comando recusa (código 2) e a cadeia não muda.

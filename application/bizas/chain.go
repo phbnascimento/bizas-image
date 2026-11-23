@@ -135,6 +135,31 @@ func openChain(path string, log *slog.Logger, clock func() time.Time) (*Chain, e
 	return c, nil
 }
 
+// ArchiveChain tira a cadeia gravada do caminho para um chat novo: renomeia path para <path>.reset-<ns>, ao lado, e o
+// próximo OpenChain começa com a cadeia vazia. Nada é apagado. Só roda com o validator parado (quem garante é o
+// reset-chat). Devolve o arquivo criado e o tamanho dele; sem cadeia, ou com o arquivo vazio, devolve "" e não mexe em
+// nada
+func ArchiveChain(path string, now time.Time) (string, int64, error) {
+	info, err := os.Stat(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return "", 0, nil
+	}
+	if err != nil {
+		return "", 0, err
+	}
+	if info.Size() == 0 {
+		return "", 0, nil
+	}
+	dest := fmt.Sprintf("%s.reset-%d", path, now.UnixNano())
+	if _, err := os.Lstat(dest); err == nil {
+		return "", 0, fmt.Errorf("%s already exists", dest)
+	}
+	if err := os.Rename(path, dest); err != nil {
+		return "", 0, err
+	}
+	return dest, info.Size(), syncDir(filepath.Dir(path))
+}
+
 func syncDir(dir string) error {
 	d, err := os.Open(dir)
 	if err != nil {

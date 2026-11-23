@@ -1,0 +1,65 @@
+#!/bin/sh
+# reset-chat: começa um chat novo, com a cadeia vazia. Nada é apagado: a cadeia atual fica no volume como
+# chain.bin.reset-<ns>, ao lado do chain.bin, e continua verificável com o validator verify
+#
+# Uso: reset-chat [--yes]   (sem --yes, pede para digitar "reset" no terminal)
+# Roda como root no console da placa. Para o validator, arquiva a cadeia num container descartável da mesma imagem
+# (o validator é FROM scratch, sem shell nem mv), religa o validator e reinicia o server, que derruba as páginas
+# abertas: elas reconectam sozinhas e recebem o histórico vazio
+BIZAS_DIR="${BIZAS_DIR:-/opt/bizas}"
+. "$BIZAS_DIR/version.env"
+
+case "$#:${1:-}" in
+	0:) ;;
+	1:--yes) ;;
+	*)
+		echo "usage: reset-chat [--yes]" >&2
+		exit 2
+		;;
+esac
+if [ "$#" -eq 0 ]; then
+	if [ ! -t 0 ]; then
+		echo "reset-chat: no terminal to confirm; run reset-chat --yes" >&2
+		exit 2
+	fi
+	echo "This starts a new, empty chat for everyone. The current chain is not deleted: it stays on the board as"
+	echo "chain.bin.reset-<ns> in the $VOLUME volume."
+	printf 'Type "reset" to continue: '
+	read -r answer
+	if [ "$answer" != reset ]; then
+		echo "reset-chat: cancelled; nothing changed"
+		exit 1
+	fi
+fi
+
+docker stop "$IMG_VALIDATOR" >/dev/null || {
+	echo "reset-chat: could not stop $IMG_VALIDATOR; nothing changed" >&2
+	exit 1
+}
+if ! docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges \
+	-v "$VOLUME:/data" "$IMG_VALIDATOR:$VERSION" reset; then
+	docker start "$IMG_VALIDATOR" >/dev/null
+	echo "reset-chat: could not archive the chain; $IMG_VALIDATOR was started again with the current chain" >&2
+	exit 1
+fi
+docker start "$IMG_VALIDATOR" >/dev/null || {
+	echo "reset-chat: the chain was archived, but $IMG_VALIDATOR did not start; see docker logs $IMG_VALIDATOR" >&2
+	exit 1
+}
+docker restart "$IMG_SERVER" >/dev/null || {
+	echo "reset-chat: the chain was archived, but $IMG_SERVER did not restart; see docker logs $IMG_SERVER" >&2
+	exit 1
+}
+
+# Espera o server ficar healthy: o healthcheck dele só passa com o validator respondendo
+i=0
+while [ "$i" -lt 30 ]; do
+	if [ "$(docker inspect -f '{{.State.Health.Status}}' "$IMG_SERVER")" = healthy ]; then
+		echo "reset-chat: ok: new empty chat; open pages reconnect by themselves"
+		exit 0
+	fi
+	sleep 1
+	i=$((i + 1))
+done
+echo "reset-chat: the chain was archived, but $IMG_SERVER is not healthy after 30 s; see docker logs" >&2
+exit 1

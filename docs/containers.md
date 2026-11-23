@@ -62,6 +62,10 @@ prova reprodutibilidade.
 - **Porta de manutenção (`127.0.0.1:5001`):** escuta só no loopback **de dentro do container** e recebe
   a hora real do `set-date` e do `set-auto-date`, que entram por `docker exec`. Ninguém na rede alcança
   essa porta, e o server se recusa a iniciar se `ADMIN_ADDR` não for de loopback.
+- **`reset-chat`:** o comando da placa para o validator, roda `validator reset` num container descartável
+  da mesma imagem (`--rm`, `--network none`, `--read-only`, `--cap-drop ALL`, `no-new-privileges`, usuário
+  65532), que renomeia `/data/chain.bin` para `chain.bin.reset-<ns>` no volume, e religa o validator e o
+  server. O validator é `FROM scratch`, sem shell nem `mv`, por isso o próprio binário faz o arquivamento.
 - **Saída para a internet:** só o `set-auto-date` usa, para consultar SNTP (UDP 123). A rede
   `bizas-net` sai pela NAT do Docker quando a placa tem rota; sem rede, o comando falha com mensagem
   clara, e nada mais depende disso.

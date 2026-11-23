@@ -177,6 +177,29 @@ else
   fail "validator did not log the dropped tail"
 fi
 
+echo "== reset-chat: the board command, run here against the real containers"
+RESET="$ROOT/rootfs-overlay/usr/bin/reset-chat"
+out="$(BIZAS_DIR="$ROOT/docker" "$RESET" </dev/null 2>&1)" && rc=0 || rc=$?
+check "reset-chat without a terminal and without --yes: exit code" "$rc" "2"
+check "chain untouched after the refused reset" "$(chain_sum)" "$BEFORE"
+out="$(BIZAS_DIR="$ROOT/docker" "$RESET" --force 2>&1)" && rc=0 || rc=$?
+check "reset-chat with an unknown option: exit code" "$rc" "2"
+out="$(BIZAS_DIR="$ROOT/docker" "$RESET" --yes 2>&1)" && rc=0 || rc=$?
+echo "$out" | sed 's/^/  /'
+check "reset-chat --yes: exit code" "$rc" "0"
+case "$out" in *"archived the chain ($BEFORE_SIZE bytes)"*"reset-chat: ok"*) ok "reset-chat archived the chain" ;;
+  *) fail "reset-chat output: $out" ;; esac
+check "chain size after reset-chat" "$(curl -sf "http://127.0.0.1:$PORT/chain" | wc -c)" "0"
+ARCHIVE="$(docker run --rm -v "$VOLUME:/data" "$GOLANG_IMAGE" sh -c 'ls /data | grep "^chain.bin.reset-"' || true)"
+check "archive files in the volume" "$(echo "$ARCHIVE" | grep -c . || true)" "1"
+out="$(docker run --rm --platform "linux/$ARCH" -v "$VOLUME:/data" "$V:$VERSION" verify "/data/$ARCHIVE" 2>&1)" || true
+case "$out" in "valid: $((BEFORE_SIZE / 512)) blocks"*) ok "the archived chain passes validator verify" ;;
+  *) fail "validator verify on the archive: $out" ;; esac
+out="$(BIZAS_DIR="$ROOT/docker" "$RESET" --yes 2>&1)" && rc=0 || rc=$?
+check "reset-chat on an empty chain: exit code" "$rc" "0"
+case "$out" in *"no messages to archive"*) ok "reset-chat on an empty chain archives nothing" ;;
+  *) fail "reset-chat on an empty chain: $out" ;; esac
+
 echo "== logs (last lines)"
 docker logs "$V" 2>&1 | tail -5
 docker logs "$S" 2>&1 | tail -5

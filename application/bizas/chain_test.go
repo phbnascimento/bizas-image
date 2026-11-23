@@ -610,3 +610,66 @@ func TestRunStartAfterRebootWithClockBehind(t *testing.T) {
 		t.Fatalf("run start %d, now %d; head %d", c2.RunStart(), c2.Now(), g.Stamp)
 	}
 }
+
+// reset-chat: a cadeia vai inteira para chain.bin.reset-<ns>, o validator seguinte começa vazio e nada é apagado
+func TestArchiveChain(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "chain.bin")
+	c, _ := OpenChain(path, quietLog)
+	a := key(t, 1)
+	g := block(t, a, nil, "genesis")
+	mustAppend(t, c, g)
+	mustAppend(t, c, block(t, a, &g, "one"))
+	all := c.Bytes()
+	c.Close()
+
+	now := time.Unix(1_800_000_000, 123)
+	dest, size, err := ArchiveChain(path, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := path + ".reset-1800000000000000123"; dest != want || size != 2*BlockSize {
+		t.Fatalf("archived as %q (%d bytes), want %q (%d bytes)", dest, size, want, 2*BlockSize)
+	}
+	if moved, _ := os.ReadFile(dest); !bytes.Equal(moved, all) {
+		t.Fatal("the archive does not hold the chain exactly")
+	}
+	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("chain.bin still there after the reset: %v", err)
+	}
+	blocks, _ := ParseChain(all)
+	if verr, _ := VerifyChain(blocks); verr != None {
+		t.Fatalf("the archived chain is not valid: %s", verr)
+	}
+
+	// O validator seguinte começa vazio e aceita um gênese novo
+	c2, err := OpenChain(path, quietLog)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c2.Len() != 0 {
+		t.Fatalf("chain after the reset has %d blocks", c2.Len())
+	}
+	mustAppend(t, c2, block(t, key(t, 2), nil, "new genesis"))
+	c2.Close()
+
+	// Mesmo instante de novo: recusa sem sobrescrever o arquivo que já existe
+	if _, _, err := ArchiveChain(path, now); err == nil {
+		t.Fatal("archive over an existing reset file was accepted")
+	}
+	if moved, _ := os.ReadFile(dest); !bytes.Equal(moved, all) {
+		t.Fatal("the existing archive was overwritten")
+	}
+
+	// Cadeia vazia (arquivo de 0 bytes) ou ausente: nada a arquivar, nada muda
+	empty := filepath.Join(dir, "empty.bin")
+	os.WriteFile(empty, nil, 0o644)
+	for _, p := range []string{empty, filepath.Join(dir, "missing.bin")} {
+		if dest, _, err := ArchiveChain(p, now.Add(time.Second)); dest != "" || err != nil {
+			t.Fatalf("%s: archived as %q, err %v", p, dest, err)
+		}
+	}
+	if _, err := os.Stat(empty); err != nil {
+		t.Fatal("the empty chain file was removed")
+	}
+}
