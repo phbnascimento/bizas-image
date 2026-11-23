@@ -132,3 +132,99 @@ Deno.test("message time: age by default, real date after set-date, nothing for a
   // Sessão anterior: nem idade nem data
   assert(formatWhen(5n * s, { now, runStart: 6n * s, realOffset: real - now }) === "earlier session", "earlier session");
 });
+
+Deno.test("fraud test: defaults equal the normal block; edits re-sign or break the signature", async () => {
+  const { composeBlock, parseField, FIELDS } = await import("./static/fraud.js");
+  const kp = testKey();
+  const head = nextBlock(null, 1_000n);
+  signBlock(head, kp.secretKey);
+  const base = { head, text: "hi", nowNs: 5_000n, nonce: 7n, keyPair: kp, resign: true };
+
+  // Sem edições: é o bloco normal (mesmos campos), assinado por mim e válido
+  const plain = composeBlock({ ...base, overrides: {} });
+  assert(plain.bytes && Object.keys(plain.errors).length === 0, "plain block has errors");
+  assert(verifyBlock(plain.effective), "plain block does not verify");
+  assert(hex(plain.effective.prev) === hex(head.sig) && plain.effective.nonce === 7n && plain.effective.stamp === 5_000n, "defaults");
+  const normal = nextBlock(head, 5_000n);
+  normal.nonce = 7n;
+  uploadString(normal, "hi");
+  assert(hex(signBlock(normal, kp.secretKey)) === hex(plain.bytes), "not byte-equal to the normal flow");
+
+  // Editar e assinar de novo: continua com assinatura válida, com o campo editado
+  const stamp = composeBlock({ ...base, overrides: { stamp: "1" } });
+  assert(stamp.effective.stamp === 1n && verifyBlock(stamp.effective), "re-signed edit");
+  // Editar sem assinar de novo: a assinatura original não bate mais
+  const broken = composeBlock({ ...base, resign: false, overrides: { stamp: "1" } });
+  assert(broken.effective.stamp === 1n && !verifyBlock(broken.effective), "stale signature should not verify");
+  // A assinatura digitada vale como foi digitada
+  const forged = composeBlock({ ...base, overrides: { sig: "ab".repeat(64) } });
+  assert(hex(forged.effective.sig) === "ab".repeat(64) && !verifyBlock(forged.effective), "typed signature");
+  // Autor trocado: assinado com a minha chave, mas o autor diz ser outro
+  const author = composeBlock({ ...base, overrides: { author: "11".repeat(32) } });
+  assert(hex(author.effective.author) === "11".repeat(32) && !verifyBlock(author.effective), "impersonation");
+  // length negativo e acima do limite chegam ao bloco (o validator é quem recusa)
+  const neg = composeBlock({ ...base, overrides: { length: "-1" } });
+  assert(neg.effective.length === -1 && neg.bytes, "negative length");
+
+  // Campos inválidos: sem bytes e com o erro no campo certo
+  for (const [field, text] of [["room", "abcd"], ["stamp", "1.5"], ["nonce", "-1"], ["info", "4294967296"], ["type", "65536"],
+    ["length", "40000"], ["prev", "zz".repeat(64)], ["author", ""]]) {
+    const r = composeBlock({ ...base, overrides: { [field]: text } });
+    assert(r.bytes === null && r.errors[field], `${field}=${JSON.stringify(text)} was accepted`);
+  }
+  // Limites aceitos
+  assert(parseField(FIELDS.find((f) => f.name === "stamp"), "9223372036854775807").value === 2n ** 63n - 1n, "i64 max");
+  assert(parseField(FIELDS.find((f) => f.name === "nonce"), "18446744073709551615").value === 2n ** 64n - 1n, "u64 max");
+  assert(!FIELDS.some((f) => f.name === "data"), "data must not be editable");
+});
+
+Deno.test("fraud test: stamp as a UTC date and room as text", async () => {
+  const { composeBlock, parseField, formatField, convertText, stampToDate, dateToStamp, FIELDS } = await import("./static/fraud.js");
+  const f = (n) => FIELDS.find((x) => x.name === n);
+
+  // Data <-> ns sem perder nenhum nanossegundo, inclusive antes de 1970
+  for (const ns of [0n, 1n, -1n, 1_795_391_185_133_797_236n, -1_000_000_001n, 2n ** 63n - 1n, -(2n ** 63n)]) {
+    assert(dateToStamp(stampToDate(ns)) === ns, `round trip of ${ns}: ${stampToDate(ns)}`);
+  }
+  assert(stampToDate(1_893_456_245_123_456_789n) === "2030-01-01 00:04:05.123456789", stampToDate(1_893_456_245_123_456_789n));
+  assert(dateToStamp("2030-01-01 00:04:05") === 1_893_456_245_000_000_000n, "no fraction");
+  assert(dateToStamp("2030-01-01T00:04:05.5") === 1_893_456_245_500_000_000n, "T separator and short fraction");
+  for (const bad of ["", "2030-02-30 00:00:00", "2030-13-01 00:00:00", "2030-01-01 24:00:00", "2030-01-01 00:60:00", "2030-01-01 00:00:60",
+    "2030-1-1 00:00:00", "2030-01-01 00:00:00.1234567890", "abc"]) {
+    assert(dateToStamp(bad) === null, `${bad} was accepted`);
+  }
+  // Fora do que cabe em int64 (ano 2300): recusado no campo
+  assert(parseField(f("stamp"), "2300-01-01 00:00:00", { stampDate: true }).error?.key === "fraud.badDate", "year 2300");
+  assert(parseField(f("stamp"), "1", { stampDate: true }).error, "ns text in date mode");
+  assert(parseField(f("stamp"), "2030-01-01 00:00:00", {}).error, "date text in ns mode");
+
+  // room: texto UTF-8 preenchido com zeros
+  const room = parseField(f("room"), "Bizas", { roomText: true }).value;
+  assert(hex(room) === "42697a6173000000", "room text");
+  assert(hex(parseField(f("room"), "", { roomText: true }).value) === "00".repeat(8), "empty room");
+  assert(hex(parseField(f("room"), "é", { roomText: true }).value) === "c3a9" + "00".repeat(6), "utf-8 room");
+  assert(parseField(f("room"), "123456789", { roomText: true }).error?.key === "fraud.badText", "9 bytes");
+  assert(parseField(f("room"), "ééééé", { roomText: true }).error?.key === "fraud.badText", "10 bytes of 5 chars");
+  assert(formatField(f("room"), { room }, { roomText: true }) === "Bizas", "room shown as text");
+  assert(formatField(f("room"), { room }, {}) === "42697a6173000000", "room shown as hex");
+  // Bytes que não são texto UTF-8 aparecem em hex, sem perda
+  const odd = new Uint8Array([0xff, 0xfe, 0, 0, 0, 0, 0, 0]);
+  assert(formatField(f("room"), { room: odd }, { roomText: true }) === "fffe000000000000", "non-text room falls back to hex");
+
+  // Trocar o modo reescreve o texto editado; o que não converte fica como está
+  assert(convertText(f("room"), "42697a6173000000", {}, { roomText: true }) === "Bizas", "hex -> text");
+  assert(convertText(f("room"), "Bizas", { roomText: true }, {}) === "42697a6173000000", "text -> hex");
+  assert(convertText(f("room"), "fffe000000000000", {}, { roomText: true }) === "fffe000000000000", "hex that is not text stays");
+  assert(convertText(f("room"), "zz", {}, { roomText: true }) === "zz", "invalid hex stays");
+  assert(convertText(f("stamp"), "1893456245123456789", {}, { stampDate: true }) === "2030-01-01 00:04:05.123456789", "ns -> date");
+  assert(convertText(f("stamp"), "2030-01-01 00:04:05.123456789", { stampDate: true }, {}) === "1893456245123456789", "date -> ns");
+
+  // O bloco montado usa o texto no modo escolhido
+  const kp = testKey();
+  const head = nextBlock(null, 1_000n);
+  signBlock(head, kp.secretKey);
+  const base = { head, text: "hi", nowNs: 5_000n, nonce: 7n, keyPair: kp, resign: true };
+  const block = composeBlock({ ...base, modes: { roomText: true, stampDate: true }, overrides: { room: "Other", stamp: "1970-01-01 00:00:10.000000001" } });
+  assert(block.bytes && new TextDecoder().decode(block.effective.room.subarray(0, 5)) === "Other" && block.effective.stamp === 10_000_000_001n, "composed with the modes");
+  assert(verifyBlock(block.effective), "re-signed with the edited fields");
+});

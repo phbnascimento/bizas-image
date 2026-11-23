@@ -6,18 +6,20 @@
 // Mensagens anteriores a runStart são de uma sessão anterior: o tempo em que a placa ficou desligada não foi contado,
 // então nenhuma hora mostrada para elas seria confiável
 
+import { localeOf, t } from "./i18n.js";
+
 export function formatAge(ns) {
   const s = Number(ns / 1_000_000_000n);
-  if (s < 60) return "just now";
-  if (s < 3600) return `${Math.floor(s / 60)} min ago`;
-  if (s < 86400) return `${Math.floor(s / 3600)} h ago`;
-  return `${Math.floor(s / 86400)} d ago`;
+  if (s < 60) return t("when.now");
+  if (s < 3600) return t("when.min", { n: Math.floor(s / 60) });
+  if (s < 86400) return t("when.h", { n: Math.floor(s / 3600) });
+  return t("when.d", { n: Math.floor(s / 86400) });
 }
 
 // stamp, now, runStart e realOffset em ns (BigInt). runStart e realOffset podem ser null
 export function formatWhen(stamp, { now, runStart = null, realOffset = null }) {
-  if (runStart !== null && stamp < runStart) return "earlier session";
-  if (realOffset !== null) return new Date(Number((stamp + realOffset) / 1_000_000n)).toLocaleString();
+  if (runStart !== null && stamp < runStart) return t("when.earlier");
+  if (realOffset !== null) return new Date(Number((stamp + realOffset) / 1_000_000n)).toLocaleString(localeOf());
   const age = now - stamp;
   return formatAge(age > 0n ? age : 0n);
 }

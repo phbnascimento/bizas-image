@@ -7,6 +7,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -92,12 +93,13 @@ func New(validatorURL string, log *slog.Logger) *Server {
 	}
 }
 
-// Handler devolve as rotas públicas: /, /health, /chain e /ws
+// Handler devolve as rotas públicas: /, /health, /chain, /chain.json e /ws
 func (s *Server) Handler(static fs.FS) http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle("GET /", http.FileServerFS(static))
 	mux.HandleFunc("GET /health", s.health)
 	mux.HandleFunc("GET /chain", s.chain)
+	mux.HandleFunc("GET /chain.json", s.chainJSON)
 	mux.HandleFunc("GET /ws", s.ws)
 	return mux
 }
@@ -128,6 +130,62 @@ func (s *Server) chain(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("Content-Disposition", `attachment; filename="chain.bin"`)
 	_, _ = w.Write(st.data)
+}
+
+// jsonBlock é um bloco legível: números grandes como string decimal e bytes em hex, só para visualização
+type jsonBlock struct {
+	Height int    `json:"height"`
+	Room   string `json:"room"`
+	Stamp  string `json:"stamp"`
+	Nonce  string `json:"nonce"`
+	Info   uint32 `json:"info"`
+	Type   string `json:"type"`
+	Length int16  `json:"length"`
+	Author string `json:"author"`
+	Sig    string `json:"sig"`
+	Prev   string `json:"prev"`
+	Text   string `json:"text,omitempty"`
+}
+
+// /chain.json devolve a cadeia formatada para leitura; quem verifica usa o /chain binário
+func (s *Server) chainJSON(w http.ResponseWriter, r *http.Request) {
+	st, err := s.fetchChain()
+	if err != nil {
+		http.Error(w, "validator unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	out := make([]jsonBlock, 0, len(st.data)/bizas.BlockSize)
+	for i := 0; i+bizas.BlockSize <= len(st.data); i += bizas.BlockSize {
+		var b bizas.Block
+		if err := b.UnmarshalBinary(st.data[i : i+bizas.BlockSize]); err != nil {
+			http.Error(w, "bad chain", http.StatusInternalServerError)
+			return
+		}
+		jb := jsonBlock{
+			Height: i / bizas.BlockSize,
+			Room:   strings.TrimRight(string(b.Room[:]), "\x00"),
+			Stamp:  strconv.FormatUint(uint64(b.Stamp), 10),
+			Nonce:  strconv.FormatUint(b.Nonce, 10),
+			Info:   b.Info,
+			Type:   b.Type.String(),
+			Length: b.Length,
+			Author: hex.EncodeToString(b.Author[:]),
+			Sig:    hex.EncodeToString(b.Sig[:]),
+			Prev:   hex.EncodeToString(b.Prev[:]),
+		}
+		if b.Type == bizas.Text && b.Length >= 0 && int(b.Length) <= bizas.MaxDataLength {
+			jb.Text = string(b.Data[:b.Length])
+		}
+		out = append(out, jb)
+	}
+	body, err := json.MarshalIndent(out, "", "  ")
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Disposition", `attachment; filename="chain.json"`)
+	_, _ = w.Write(append(body, '\n'))
 }
 
 // fetchChain devolve a cadeia, o relógio efetivo do validator e o início da execução dele

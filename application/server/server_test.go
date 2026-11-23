@@ -251,6 +251,37 @@ func TestStaticAndChain(t *testing.T) {
 	}
 }
 
+func TestChainJSON(t *testing.T) {
+	srv, _ := stack(t)
+	c := dial(t, srv)
+	read(t, c)
+	g := signed(t, 1, nil, "genesis")
+	write(t, c, websocket.MessageBinary, g.MarshalBinary())
+	read(t, c)
+	next := signed(t, 1, &g, "second")
+	write(t, c, websocket.MessageBinary, next.MarshalBinary())
+	read(t, c)
+
+	resp, err := http.Get(srv.URL + "/chain.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 || resp.Header.Get("Content-Type") != "application/json" {
+		t.Fatalf("/chain.json: %d %s", resp.StatusCode, resp.Header.Get("Content-Type"))
+	}
+	var got []jsonBlock
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || got[0].Height != 0 || got[1].Height != 1 || got[0].Text != "genesis" || got[1].Text != "second" {
+		t.Fatalf("unexpected blocks: %+v", got)
+	}
+	if got[1].Prev != got[0].Sig || got[0].Sig != hex.EncodeToString(g.Sig[:]) || got[0].Room != "Bizas" {
+		t.Fatalf("chaining or fields wrong: %+v", got)
+	}
+}
+
 // swapHandler deixa trocar o validator por trás do mesmo endereço, simulando um reinício dele
 type swapHandler struct {
 	mu sync.Mutex

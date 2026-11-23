@@ -4,27 +4,132 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Bizas</title>
+<script>
+// Define o tema antes da primeira pintura: o escolhido nas configurações ou, sem escolha, o do sistema
+try { var th = localStorage.getItem("bizas.theme"); } catch (e) { var th = null; }
+document.documentElement.dataset.theme = th === "light" || th === "dark" ? th
+  : matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+</script>
 <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body class="loading">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="flag-br" viewBox="0 0 60 40">
+    <rect width="60" height="40" fill="#009c3b"/>
+    <path d="M30 3 57 20 30 37 3 20Z" fill="#ffdf00"/>
+    <circle cx="30" cy="20" r="8.5" fill="#002776"/>
+  </symbol>
+  <symbol id="flag-gb" viewBox="0 0 60 40">
+    <rect width="60" height="40" fill="#012169"/>
+    <path d="M0 0 60 40M60 0 0 40" stroke="#fff" stroke-width="8"/>
+    <path d="M0 0 60 40M60 0 0 40" stroke="#c8102e" stroke-width="3"/>
+    <path d="M30 0v40M0 20h60" stroke="#fff" stroke-width="12"/>
+    <path d="M30 0v40M0 20h60" stroke="#c8102e" stroke-width="7"/>
+  </symbol>
+</svg>
+<section id="setup">
+  <img class="hero" src="bizas.png" alt="" width="900" height="900">
+  <div class="title"><h1>Bizas</h1><button class="gear" type="button" data-i18n-aria="settings.title" aria-label="Settings"><svg viewBox="0 0 24 24" aria-hidden="true"><g transform="translate(12 12)" fill="currentColor"><circle r="6.5" fill="none" stroke="currentColor" stroke-width="3"/><rect x="-1.8" y="-10.5" width="3.6" height="4.5"/><rect x="-1.8" y="-10.5" width="3.6" height="4.5" transform="rotate(45)"/><rect x="-1.8" y="-10.5" width="3.6" height="4.5" transform="rotate(90)"/><rect x="-1.8" y="-10.5" width="3.6" height="4.5" transform="rotate(135)"/><rect x="-1.8" y="-10.5" width="3.6" height="4.5" transform="rotate(180)"/><rect x="-1.8" y="-10.5" width="3.6" height="4.5" transform="rotate(225)"/><rect x="-1.8" y="-10.5" width="3.6" height="4.5" transform="rotate(270)"/><rect x="-1.8" y="-10.5" width="3.6" height="4.5" transform="rotate(315)"/></g></svg></button></div>
+  <p data-i18n="setup.intro">Your identity is a private key. It stays in this browser and is never sent anywhere: messages are
+  signed here. Generate a new key or paste one you already have.</p>
+  <p id="disclaimer" data-i18n="disclaimer">DISCLAIMER: DO NOT SHARE YOUR PRIVATE KEY WITH ANYONE</p>
+  <form id="s-form" autocomplete="off">
+    <label for="s-key" data-i18n="setup.private">Private key</label>
+    <div class="row">
+      <input id="s-key" data-i18n-placeholder="setup.placeholder" placeholder="64 hexadecimal characters" spellcheck="false"
+        autocapitalize="off">
+      <button id="s-dice" type="button" data-i18n-aria="setup.dice" data-i18n-title title="Generate a new key"
+        aria-label="Generate a new key">🎲</button>
+    </div>
+    <div id="s-err"></div>
+    <div id="s-qrbox" hidden>
+      <button id="s-qrbtn" type="button" data-i18n="setup.qrShow" aria-expanded="false">Show private key as QR code</button>
+      <div id="s-qr" class="qr" hidden></div>
+    </div>
+    <label data-i18n="setup.public">Public key</label>
+    <code id="s-pub">—</code>
+    <p class="hint" data-i18n="setup.hint">This is the identity you will use. Keep a copy of the private key somewhere safe:
+    clearing this site's data in the browser deletes it, and the identity with it.</p>
+    <button id="s-use" data-i18n="setup.use" disabled>Use this key</button>
+  </form>
+</section>
 <header>
+  <div class="logo"><img src="bizas.png" alt=""></div>
   <h1>Bizas</h1>
-  <span class="info">room <code id="room">—</code></span>
-  <span class="info">you <code id="me">—</code></span>
-  <span class="info">blocks <code id="height">0</code></span>
-  <span class="info">fingerprint <code id="fingerprint">—</code></span>
-  <span id="status">connecting…</span>
+  <span class="info"><span data-i18n="head.room">room</span> <code id="room">—</code></span>
+  <span class="info"><span data-i18n="head.you">you</span> <code id="me">—</code></span>
+  <span class="info"><span data-i18n="head.blocks">blocks</span> <code id="height">0</code></span>
+  <span class="info"><span data-i18n="head.fingerprint">fingerprint</span> <code id="fingerprint">—</code></span>
+  <span id="status" data-i18n="status.connecting">connecting…</span>
+  <button class="gear" type="button" data-i18n-aria="settings.title" aria-label="Settings"><svg viewBox="0 0 24 24" aria-hidden="true"><g transform="translate(12 12)" fill="currentColor"><circle r="6.5" fill="none" stroke="currentColor" stroke-width="3"/><rect x="-1.8" y="-10.5" width="3.6" height="4.5"/><rect x="-1.8" y="-10.5" width="3.6" height="4.5" transform="rotate(45)"/><rect x="-1.8" y="-10.5" width="3.6" height="4.5" transform="rotate(90)"/><rect x="-1.8" y="-10.5" width="3.6" height="4.5" transform="rotate(135)"/><rect x="-1.8" y="-10.5" width="3.6" height="4.5" transform="rotate(180)"/><rect x="-1.8" y="-10.5" width="3.6" height="4.5" transform="rotate(225)"/><rect x="-1.8" y="-10.5" width="3.6" height="4.5" transform="rotate(270)"/><rect x="-1.8" y="-10.5" width="3.6" height="4.5" transform="rotate(315)"/></g></svg></button>
 </header>
-<main id="log"><p id="empty">No messages yet.</p></main>
-<form id="form" autocomplete="off">
-  <input id="text" maxlength="320" placeholder="Message (signed on this device)" disabled>
-  <span id="count">0/320</span>
-  <button id="send" disabled>Send</button>
-</form>
+<main id="log"><p id="empty" data-i18n="empty">No messages yet.</p></main>
+<div id="composer">
+  <form id="form" autocomplete="off">
+    <input id="text" maxlength="320" data-i18n-placeholder="msg.placeholder" placeholder="Message (signed on this device)" disabled>
+    <span id="count">0/320</span>
+    <button id="send" data-i18n="msg.send" disabled>Send</button>
+  </form>
+  <div id="msg-error" role="alert" hidden></div>
+  <section id="fraud" hidden>
+    <p class="hint" data-i18n="fraud.hint">Edit any field, then send. Fields you have not touched follow the normal message. The data
+    field is not shown, since it is the message text field.</p>
+    <div id="fraud-fields"></div>
+    <div class="ftools">
+      <button id="fraud-reset" type="button" data-i18n="fraud.resetAll" disabled>Reset all fields</button>
+      <label class="check"><input type="checkbox" id="fraud-roomhex"><span data-i18n="fraud.roomHex">Edit room as bytes (hexadecimal) instead of text</span></label>
+      <label class="check"><input type="checkbox" id="fraud-sync" checked><span data-i18n="fraud.syncStamp">Update the stamp automatically (uncheck to freeze it)</span></label>
+      <label class="check"><input type="checkbox" id="fraud-stampdate"><span data-i18n="fraud.stampDate">Edit the stamp as a UTC date (year, month, day… second) instead of nanoseconds</span></label>
+      <label class="check"><input type="checkbox" id="fraud-resign" checked><span data-i18n="fraud.resign">Sign automatically after my edits (uncheck to keep the original signature)</span></label>
+    </div>
+    <div id="fraud-result" role="status"></div>
+  </section>
+</div>
 <footer>
-  Your private key never leaves this browser. <a href="/chain">Download the chain</a>
+  <span data-i18n="foot.key">Your private key never leaves this browser :)</span> •
+  <a href="/chain" data-i18n="foot.chain">Download the chain</a> • <a href="/chain.json" data-i18n="foot.json">as JSON</a>
 </footer>
+<aside id="panel" class="side" hidden>
+  <button id="p-close" class="close" type="button" data-i18n-aria="panel.close" aria-label="Close">×</button>
+  <h2 data-i18n="panel.title">Public key</h2>
+  <code id="p-key"></code>
+  <div id="p-qr" class="qr"></div>
+  <hr>
+  <label for="p-name" data-i18n="panel.name">Name (saved only in this browser)</label>
+  <input id="p-name" maxlength="40" data-i18n-placeholder="panel.namePlaceholder" placeholder="Give this person a name">
+  <label for="p-hue" data-i18n="panel.color">Color (saved only in this browser)</label>
+  <input id="p-hue" type="range" min="0" max="359" step="1" data-i18n-aria="panel.colorAria" aria-label="Color">
+  <button id="p-reset" type="button" data-i18n="panel.default" hidden>Default color</button>
+  <hr>
+  <label for="p-note" data-i18n="panel.note">Note (visible only to you, saved only in this browser)</label>
+  <textarea id="p-note" rows="4" maxlength="2000" data-i18n-placeholder="panel.notePlaceholder" placeholder="Write a note about this person"></textarea>
+  <hr>
+  <dl>
+    <dt data-i18n="panel.first">First block</dt><dd id="p-first"></dd>
+    <dt data-i18n="panel.sent">Blocks sent</dt><dd id="p-count"></dd>
+  </dl>
+</aside>
+<aside id="settings" class="side" hidden>
+  <button id="st-close" class="close" type="button" data-i18n-aria="panel.close" aria-label="Close">×</button>
+  <h2 data-i18n="settings.title">Settings</h2>
+  <label data-i18n="settings.language">Language</label>
+  <div class="seg">
+    <button type="button" data-lang="pt"><svg viewBox="0 0 60 40"><use href="#flag-br"/></svg>Português</button>
+    <button type="button" data-lang="en"><svg viewBox="0 0 60 40"><use href="#flag-gb"/></svg>English</button>
+  </div>
+  <hr>
+  <label data-i18n="settings.theme">Theme</label>
+  <div class="seg">
+    <button type="button" data-theme-set="light" data-i18n="theme.light">Light</button>
+    <button type="button" data-theme-set="dark" data-i18n="theme.dark">Dark</button>
+  </div>
+  <hr>
+  <label class="check"><input type="checkbox" id="fraud-toggle"><span data-i18n="settings.fraud">Enable Fraud Test</span></label>
+  <p class="hint" data-i18n="settings.fraudHint">Shows every field of the block so you can edit it before sending and see how the protocol
+  reacts.</p>
+</aside>
 <script src="nacl-fast.min.js"></script>
+<script src="qrcode.js"></script>
 <script type="module" src="app.js"></script>
 </body>
 </html>
