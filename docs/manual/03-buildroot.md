@@ -15,7 +15,7 @@ As customizações ficam num `BR2_EXTERNAL` próprio (`buildroot-external/`, nom
 
 - **Caminho no menuconfig** e **dependências** vêm do `Config.in` do Buildroot 2026.05.1 em `buildroot/`.
 - **Tamanho** é medido pelo `make graph-size` do Buildroot (`output/buildroot/graphs/package-size-stats.csv`),
-  que soma o tamanho dos arquivos de cada pacote no rootfs. O rootfs inteiro soma 218 833 017 bytes. Onde
+  que soma o tamanho dos arquivos de cada pacote no rootfs. O rootfs inteiro soma 218 840 039 bytes. Onde
   a opção não instala um pacote, o tamanho é o do arquivo que ela produz, medido com `ls -l`.
 - **Boot** é o raciocínio técnico sobre o efeito no tempo de inicialização. Não é uma medida.
 - **Licença** vem do `make legal-info` (capítulo 5).
@@ -66,16 +66,16 @@ abaixo, todas do fragmento.
 
 ### `BR2_ROOTFS_OVERLAY`
 
-| Campo                 | Conteúdo                                                                                                                                                                   |
-|-----------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Caminho no menuconfig | System configuration → Root filesystem overlay directories                                                                                                                 |
-| Valor                 | `"$(BR2_EXTERNAL_BIZAS_PATH)/../rootfs-overlay"` (padrão: vazio)                                                                                                           |
-| Motivo                | Copia para o rootfs os arquivos do projeto: `/etc/init.d/S99bizas` (provisionamento no 1º boot) e `/usr/bin/set-date` e `/usr/bin/set-auto-date` (hora real da página).    |
-| Dependências          | nenhuma                                                                                                                                                                    |
-| Tamanho               | 3 scripts de shell; nenhum efeito mensurável                                                                                                                               |
-| Boot                  | Acrescenta o `S99bizas` ao fim do `rcS`. Depois do 1º boot, ele só confere a existência da marca `/var/lib/bizas/provisioned` e sai, sem executar nenhum comando `docker`. |
-| Segurança             | Os comandos de `/usr/bin` são usados pelo root no console e falam com a porta de manutenção do server, que só escuta no loopback do container.                             |
-| Licença               | arquivos do projeto                                                                                                                                                        |
+| Campo                 | Conteúdo                                                                                                                                                                                                        |
+|-----------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Caminho no menuconfig | System configuration → Root filesystem overlay directories                                                                                                                                                      |
+| Valor                 | `"$(BR2_EXTERNAL_BIZAS_PATH)/../rootfs-overlay"` (padrão: vazio)                                                                                                                                                |
+| Motivo                | Copia para o rootfs os arquivos do projeto: `/etc/init.d/S99bizas` (provisionamento no 1º boot) `/usr/bin/set-date` e `/usr/bin/set-auto-date` (hora real da página) e `/usr/bin/reset-chat` (chat novo).       |
+| Dependências          | nenhuma                                                                                                                                                                                                         |
+| Tamanho               | 4 scripts de shell; nenhum efeito mensurável                                                                                                                                                                    |
+| Boot                  | Acrescenta o `S99bizas` ao fim do `rcS`. Depois do 1º boot, ele só confere a existência da marca `/var/lib/bizas/provisioned` e sai, sem executar nenhum comando `docker`.                                      |
+| Segurança             | Os comandos de `/usr/bin` são usados pelo root no console; o `set-date` e o `set-auto-date` falam com a porta de manutenção do server, que só escuta no loopback do container, e o `reset-chat` usa o `docker`. |
+| Licença               | arquivos do projeto                                                                                                                                                                                             |
 
 ### `BR2_ROOTFS_POST_BUILD_SCRIPT`
 
@@ -85,7 +85,7 @@ abaixo, todas do fragmento.
 | Valor                 | `"board/raspberrypi4-64/post-build.sh $(BR2_EXTERNAL_BIZAS_PATH)/board/bizas/rpi4/post-build.sh"` (padrão do defconfig da Pi: só o primeiro)                                                      |
 | Motivo                | O primeiro script é o da Raspberry Pi (acrescenta um `getty` no `tty1`). O segundo embarca a aplicação: copia para `/opt/bizas` os tars arm64 dos containers, o `provision.sh` e o `version.env`. |
 | Dependências          | nenhuma no kconfig. O script exige os tars de `scripts/containers-build.sh arm64` e `python3` no host.                                                                                            |
-| Tamanho               | Os dois tars somam 5 923 328 bytes (3 077 632 do server e 2 845 696 do validator). No `graph-size`, os arquivos sem pacote somam 5 930 563 bytes, quase todos desses tars.                        |
+| Tamanho               | Os dois tars somam 5 927 936 bytes (3 079 680 do server e 2 848 256 do validator). No `graph-size`, os arquivos sem pacote somam 5 937 585 bytes, quase todos desses tars.                        |
 | Boot                  | Nenhum nos boots seguintes. No 1º boot, os tars são carregados pelo `docker load`, fora da medição normal de boot.                                                                                |
 | Segurança             | Antes de copiar, confere que o SHA-256 de cada tar é o registrado em `evidence/hashes-containers.txt` e que a imagem dentro dele é `linux/arm64`; se não for, o build para.                       |
 | Licença               | aplicação do projeto (capítulo 5)                                                                                                                                                                 |
@@ -148,7 +148,7 @@ abaixo, todas do fragmento.
 |-----------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Caminho no menuconfig | Target packages → System tools → docker-cli                                                                                                                  |
 | Valor                 | `y`                                                                                                                                                          |
-| Motivo                | O comando `docker`, usado pelo provisionamento no 1º boot, pelo `set-date` e `set-auto-date` e pela manutenção no console.                                   |
+| Motivo                | O comando `docker`, usado pelo provisionamento no 1º boot, pelo `set-date`, `set-auto-date` e `reset-chat` e pela manutenção no console.                     |
 | Dependências          | `BR2_PACKAGE_HOST_GO_TARGET_ARCH_SUPPORTS`, `BR2_PACKAGE_HOST_GO_TARGET_CGO_LINKING_SUPPORTS`, `BR2_TOOLCHAIN_HAS_THREADS`. Seleciona `BR2_PACKAGE_HOST_GO`. |
 | Tamanho               | 26 888 864 bytes                                                                                                                                             |
 | Boot                  | Nenhum depois do 1º boot: o `S99bizas` não chama o `docker` quando a marca de provisionamento existe.                                                        |
@@ -163,7 +163,7 @@ abaixo, todas do fragmento.
 | Valor                 | `"1024M"` (defconfig da Pi: `"120M"`)                                                                                                                                                 |
 | Motivo                | O rootfs guarda o Docker (cerca de 174 MB pelos pacotes da seção 3.3), os tars, e em `/var/lib/docker` as camadas carregadas e o volume da cadeia. 120M não comporta nem os binários. |
 | Dependências          | `BR2_TARGET_ROOTFS_EXT2`                                                                                                                                                              |
-| Tamanho               | `sdcard.img` passa a ter 1 107 296 768 bytes; o `.img.xz` tem 81 812 196 bytes.                                                                                                       |
+| Tamanho               | `sdcard.img` passa a ter 1 107 296 768 bytes; o `.img.xz` tem 81 826 244 bytes.                                                                                                       |
 | Boot                  | Não muda o que o firmware e o kernel leem. Aumenta o que o `dd` grava no cartão.                                                                                                      |
 | Segurança             | nenhum                                                                                                                                                                                |
 | Licença               | nenhum                                                                                                                                                                                |

@@ -16,7 +16,7 @@ necessário para iniciar o Docker. A aplicação roda em dois containers. O prot
 | Kernel         | Linux 6.12.61 da árvore `raspberrypi/linux`, `bcm2711_defconfig` mais o fragmento do Docker                 | [`kernel-config/docker.fragment`](../../kernel-config/docker.fragment), [capítulo 4](04-kernel-and-drivers.md)      |
 | Init           | init do BusyBox; `/etc/inittab` e os scripts de `/etc/init.d`                                               | Buildroot (`BR2_INIT_BUSYBOX`), [`S99bizas`](../../rootfs-overlay/etc/init.d/S99bizas)                              |
 | Docker         | `dockerd`, `containerd`, `runc` e `iptables`, do pacote `docker-engine`; o comando `docker` do `docker-cli` | [`buildroot.fragment`](../../buildroot-external/board/bizas/rpi4/buildroot.fragment), [capítulo 3](03-buildroot.md) |
-| Aplicação      | `bizas-validator:0.2` e `bizas-server:0.2`, dois binários Go estáticos em imagens `FROM scratch`            | [`docker/`](../../docker), [`application/`](../../application), [`docs/containers.md`](../containers.md)            |
+| Aplicação      | `bizas-validator:0.3` e `bizas-server:0.3`, dois binários Go estáticos em imagens `FROM scratch`            | [`docker/`](../../docker), [`application/`](../../application), [`docs/containers.md`](../containers.md)            |
 | Interface      | página web servida pelo `bizas-server`, aberta no navegador de outro aparelho                               | [`application/server/static/`](../../application/server/static)                                                     |
 
 A imagem não tem ambiente gráfico. A interface do usuário é a página web, aberta em outro aparelho da
@@ -77,10 +77,13 @@ também responde 200; senão, responde 503 `validator unavailable`
 
 ## 1.3 Fluxo de uma mensagem
 
-1. O navegador monta o bloco de 512 bytes e o assina com a chave privada, que nunca sai do navegador.
+1. O navegador monta o bloco de 512 bytes e o assina com a chave privada, que nunca sai do navegador. A assinatura
+   tem de começar com N bits zero, sendo N o `info` do gênese (0 a 20, escolhido por quem cria a sala): o navegador
+   soma 1 ao `nonce` e assina de novo até conseguir. É a prova de trabalho, descrita em
+   [`docs/protocol.md`](../protocol.md).
 2. O server recebe o bloco pelo WebSocket e o repassa ao validator (`POST /blocks`).
-3. O validator confere o bloco contra a cabeça da cadeia, grava em `chain.bin`, faz `fsync` e só então
-   responde 200.
+3. O validator confere o bloco contra a cabeça da cadeia, inclusive a prova de trabalho, grava em `chain.bin`, faz
+   `fsync` e só então responde 200.
 4. O server transmite o bloco confirmado a todos os navegadores conectados. Uma recusa volta só para quem
    enviou, com o código do erro em JSON.
 
@@ -141,7 +144,9 @@ A medição vale para boots frios, depois do provisionamento do primeiro boot.
   `set-auto-date` consulta a hora por SNTP em `pool.ntp.org`, `time.google.com` e `time.cloudflare.com`.
   Os dois estão em `/usr/bin` e fazem `docker exec bizas-server /app …`, que fala com a porta de manutenção
   `127.0.0.1:5001` de dentro do container. A hora informada fica só na memória do server e não muda os
-  carimbos assinados.
+  carimbos assinados. `reset-chat [--yes]` começa um chat novo: para o validator, arquiva `chain.bin` como
+  `chain.bin.reset-<ns>` no volume (pelo `validator reset`, num container descartável da mesma imagem), religa o
+  validator e reinicia o server. Sem `--yes`, pede para digitar `reset`. Nada é apagado.
 
 ## 1.6 Operação sem internet
 

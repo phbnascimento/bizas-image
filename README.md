@@ -10,6 +10,29 @@ abrem o IP da placa no navegador; não é preciso instalar nada.
 Projeto final de Sistemas Embarcados (UNISANTA, 2026). A meta central é a aplicação
 **responder em menos de 15 s** depois que a placa é ligada.
 
+## Simples e portátil
+
+O Bizas inteiro cabe em **dois binários Go estáticos e uma página**. Não há banco de dados, interpretador,
+servidor web à parte, CDN nem conta em serviço nenhum.
+
+- **Dois binários, nada mais:** cada container é uma imagem `FROM scratch` com um único arquivo, `/app`: sem
+  shell, sem bibliotecas, sem sistema base. São cerca de 2,8 MB (validator) e 3,1 MB (server) em arm64. O código
+  usa a biblioteca padrão do Go e uma única dependência externa, `github.com/coder/websocket`.
+- **A cadeia é um arquivo:** o histórico inteiro é `chain.bin`, blocos de 512 bytes um atrás do outro, sem
+  índice nem esquema. É o mesmo formato que a página baixa em `/chain` e que o `validator verify` confere em
+  qualquer computador com Go.
+- **Um formato de bloco, duas linguagens:** o bloco tem layout fixo, sem JSON nem serialização ambígua, e o
+  navegador (JavaScript) e o validator (Go) produzem os mesmos bytes e as mesmas assinaturas, provados por um
+  vetor de teste compartilhado.
+- **Nada para instalar no aparelho:** quem participa só abre o IP da placa no navegador. A criptografia e o QR
+  code vêm embutidos na página, e ela funciona por `http://` na rede local, sem HTTPS e sem internet.
+- **Mesmo código em outras arquiteturas:** o Go compila o mesmo código para as arquiteturas que ele suporta
+  trocando uma variável (`GOARCH`). As imagens são geradas e testadas em **arm64**, para a Raspberry Pi, e em
+  **amd64**, no PC; o teste completo dos containers roda nas duas.
+- **Build sem internet:** as dependências Go ficam em `application/vendor/`, as bibliotecas JavaScript estão
+  copiadas no repositório com o SHA-256 anotado, e a imagem do compilador Go é fixada por digest.
+- **Manutenção em poucos comandos:** `set-date`, `set-auto-date` e `reset-chat`, no console da placa.
+
 ## A imagem e sua arquitetura
 
 ```
@@ -26,7 +49,7 @@ Raspberry Pi 4 (4 GB)
 ### Os dois containers
 
 Cada container tem um único binário Go estático, numa imagem `FROM scratch` (sem shell, sem
-bibliotecas): cerca de 2,8 MB e 3,0 MB em arm64.
+bibliotecas): cerca de 2,8 MB e 3,1 MB em arm64.
 
 |               | `bizas-validator`                                        | `bizas-server`                           |
 |---------------|----------------------------------------------------------|------------------------------------------|

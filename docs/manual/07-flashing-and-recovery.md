@@ -33,8 +33,8 @@ com a saída do próprio `docker load`, estão estas:
 ```text
 [bizas] first boot: provisioning the containers
 [bizas] docker load may keep this screen still for a few minutes
-[provision] docker load /opt/bizas/bizas-validator-0.2.tar (this may take a while)
-[provision] docker load /opt/bizas/bizas-server-0.2.tar (this may take a while)
+[provision] docker load /opt/bizas/bizas-validator-0.3.tar (this may take a while)
+[provision] docker load /opt/bizas/bizas-server-0.3.tar (this may take a while)
 [provision] creating bizas-validator
 [provision] creating bizas-server (port 80 -> 5000)
 [provision] containers started: bizas-validator, bizas-server
@@ -95,7 +95,7 @@ removidos antes; o **volume `bizas-data` não**, porque ele guarda a cadeia.
 
 ```sh
 docker rm -f bizas-validator bizas-server        # remove os containers (a cadeia fica no volume)
-docker rmi bizas-validator:0.2 bizas-server:0.2  # opcional: força um novo docker load dos tars
+docker rmi bizas-validator:0.3 bizas-server:0.3  # opcional: força um novo docker load dos tars
 rm /var/lib/bizas/provisioned
 /etc/init.d/S99bizas start                       # ou reiniciar a placa
 ```
@@ -137,7 +137,31 @@ Os blocos em quarentena não voltam para a cadeia: o primeiro deles é o inváli
 encadeiam nele. O arquivo existe para análise. Na revalidação de partida vale só a validade da cadeia, nunca
 a regra do relógio: com a placa acordando com o relógio atrasado, o histórico gravado continua válido.
 
-## 7.7 Diagnóstico
+## 7.7 Começar um chat novo
+
+O `reset-chat`, como root no console, começa um chat com a cadeia vazia:
+
+```sh
+reset-chat          # pede para digitar "reset"
+reset-chat --yes    # sem pergunta, para scripts
+```
+
+O comando para o `bizas-validator` e roda `validator reset` num container descartável da mesma imagem, sem
+rede e com o volume montado. O `validator reset` renomeia `/data/chain.bin` para `chain.bin.reset-<ns>`, ao
+lado, onde `<ns>` é o instante em nanossegundos. Depois o comando religa o validator, que cria um `chain.bin`
+vazio, reinicia o `bizas-server`, o que fecha os WebSockets abertos, e espera o server ficar `healthy`. As páginas
+abertas reconectam, recebem o histórico vazio e mostram o campo de bits zero para o gênese novo.
+
+- **Nada é apagado:** a cadeia anterior fica no volume, em
+  `/var/lib/docker/volumes/bizas-data/_data/chain.bin.reset-<ns>`, e passa no `validator verify` como qualquer
+  cadeia exportada.
+- **Cadeia já vazia:** o `validator reset` responde `reset: no messages to archive; the chain is already empty` e
+  não cria arquivo.
+- **Falha ao arquivar:** o comando religa o validator com a cadeia atual e sai com código 1.
+- **Hora real:** o validator religado tem outro `run_start`, então a hora informada por `set-date` ou
+  `set-auto-date` deixa de valer e precisa ser informada de novo.
+
+## 7.8 Diagnóstico
 
 | Sintoma                                                      | Causa conhecida                                                               | O que fazer                                                                                                                                                                                                                                       |
 |--------------------------------------------------------------|-------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
