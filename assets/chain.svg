@@ -28,7 +28,7 @@
     }
   </style>
   <defs>
-    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+    <marker id="arrow" viewBox="0 0 10 10" refX="0" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
       <path class="head" d="M0 0 L10 5 L0 10 z"/>
     </marker>
   </defs>
@@ -79,9 +79,10 @@
     <text class="k" x="12" y="140">sig</text><text class="v" x="188" y="140" text-anchor="end">S2</text>
   </g>
 
-  <!-- Elos: sig de um bloco → prev do seguinte -->
-  <path class="link" d="M220 170 C 255 170, 255 80, 288 80" marker-end="url(#arrow)"/>
-  <path class="link" d="M490 170 C 525 170, 525 80, 558 80" marker-end="url(#arrow)"/>
+  <!-- Elos: sig de um bloco → prev do seguinte. A linha para na base da seta (16 px antes do bloco: 10 unidades do
+       marker × markerWidth 8/10 × stroke 2), para a ponta do triângulo ficar limpa -->
+  <path class="link" d="M220 165 C 250 165, 245 75, 273 75" marker-end="url(#arrow)"/>
+  <path class="link" d="M490 165 C 520 165, 515 75, 543 75" marker-end="url(#arrow)"/>
 
   <!-- Área coberta pela assinatura, mostrada no bloco 2 -->
   <rect class="cover" x="555" y="25" width="210" height="160" rx="10"/>
