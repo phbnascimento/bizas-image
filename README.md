@@ -1,5 +1,7 @@
 # Bizas
 
+<p align="center"><img src="assets/bizas.png" alt="Logo do Bizas" width="160"></p>
+
 Imagem Linux própria para a **Raspberry Pi 4**, gerada com **Buildroot** 2026.05.1, que ao ligar sobe sozinha a
 aplicação em **containers Docker**: o **Bizas**, um chat em que cada mensagem é **assinada no aparelho de quem
 escreve** e **encadeada à anterior**, formando um histórico que qualquer pessoa pode verificar. Os participantes
@@ -26,11 +28,11 @@ Raspberry Pi 4 (4 GB)
 Cada container tem um único binário Go estático, numa imagem `FROM scratch` (sem shell, sem
 bibliotecas): cerca de 2,8 MB e 3,0 MB em arm64.
 
-| | `bizas-validator` | `bizas-server` |
-|---|---|---|
-| papel | único dono da cadeia: confere, grava e serve o histórico | página, WebSocket e repasse ao validator |
-| porta no host | **nenhuma** | 80 → 5000 |
-| volume | `bizas-data` em `/data` | **nenhum** |
+|               | `bizas-validator`                                        | `bizas-server`                           |
+|---------------|----------------------------------------------------------|------------------------------------------|
+| Papel         | único dono da cadeia: confere, grava e serve o histórico | Página, WebSocket e repasse ao validator |
+| Porta no host | **nenhuma**                                              | 80 → 5000                                |
+| Volume        | `bizas-data` em `/data`                                  | **Nenhum**                               |
 
 **Por que dois containers: privilégio mínimo.** O server é o único exposto na rede e não tem volume.
 Se ele for comprometido, não consegue reescrever a cadeia; só pode pedir ao validator que acrescente
@@ -108,9 +110,34 @@ scripts/flash-sd.sh                 # grava no microSD e confere lendo de volta
 
 ### Identidade
 
-Ao abrir a página pela primeira vez, o navegador gera um par de chaves **Ed25519** com o tweetnacl,
-que vem embutido na página, sem CDN. A seed de 32 bytes fica no `localStorage` do navegador (chave
-`bizas.seed`).
+Ao abrir a página pela primeira vez, aparece só uma tela com o campo da chave privada: a pessoa gera uma
+nova (botão de dado, com `crypto.getRandomValues`) ou cola uma que já tem (64 caracteres hexadecimais, a seed
+de 32 bytes). A página mostra a chave pública correspondente, em hex, e a pessoa confirma que é aquela que
+quer usar. Só então a seed é gravada no `localStorage` do navegador (chave `bizas.seed`) e a página conecta.
+O par de chaves é **Ed25519**, com o tweetnacl embutido na página, sem CDN. Enquanto a chave privada está
+válida no campo, a tela mostra também o QR code dela (aviso: não compartilhe a chave privada com ninguém).
+
+Clicar no ID de uma pessoa (na barra ou numa mensagem) abre um painel com a chave pública completa, o QR code
+dela, um nome, uma cor e uma nota de texto livre que só este navegador guarda (`bizas.names`, `bizas.hues` e
+`bizas.notes` no `localStorage`; a nota é só para você, para anotar algo sobre o dono da chave), o
+índice e a hora do primeiro bloco dela e quantos blocos enviou. A engrenagem abre as configurações: língua
+(português ou inglês) e tema (claro ou escuro), guardados em `bizas.lang` e `bizas.theme`. O QR code vem do
+`qrcode-generator` (MIT), embutido na página.
+
+Nas configurações, **Enable Fraud Test** expande a barra de baixo e mostra todos os campos do bloco (`room`,
+`stamp`, `nonce`, `info`, `type`, `length`, `author`, `sig`, `prev`), menos o `data`, que é o texto da
+mensagem. Cada campo pode ser editado à mão, e o botão *default* ao lado devolve o valor que a mensagem normal
+teria. A opção "sign automatically" refaz a assinatura depois das edições, para que a recusa venha das regras do
+protocolo (`NO_TIMESTAMP_CONTINUITY`, `INVALID_ROOM`, `NO_HASH_CONTINUITY`, `INVALID_LENGTH`,
+`TIMESTAMP_IN_FUTURE`); desmarcada, ou com `sig` ou `author` editados, a recusa é `FRAUD`. O código que o
+validator devolve aparece abaixo dos campos, que ficam logo abaixo da barra de mensagem. "Reset all fields" volta todos os
+campos ao valor padrão de uma vez. Nada é reenviado automaticamente, e o bloco só entra na cadeia se
+o validator o aceitar.
+
+Abaixo do botão de restaurar há quatro opções, uma por linha: editar o `room` em bytes (hexadecimal) em vez de texto
+(o padrão é texto, como `Bizas`); atualizar o `stamp` automaticamente (desmarcada, ele fica congelado no instante em
+que a opção foi desmarcada); editar o `stamp` como data UTC (`2030-01-01 00:04:05.123456789`) em vez de nanossegundos; e
+assinar automaticamente depois das edições. Ao trocar o modo de um campo já editado, o texto é convertido, quando dá.
 
 - **A chave privada nunca sai do aparelho.** O servidor só recebe mensagens já assinadas.
 - O ID mostrado na tela são os 4 primeiros bytes da chave pública, em hex (ex.: `1d060702`).
@@ -120,17 +147,17 @@ que vem embutido na página, sem CDN. A seed de 32 bytes fica no `localStorage` 
 
 Cada mensagem vira um **bloco de 512 bytes**, com layout fixo e inteiros em little-endian:
 
-| bytes | campo | conteúdo |
-|---:|---|---|
-| 8 | `room` | nome da sala (padrão `Bizas`) |
-| 8 | `stamp` | instante em nanossegundos desde 1970 (UTC) |
-| 8 | `nonce` | número aleatório |
-| 4 + 2 | `info`, `type` | uso livre e tipo do conteúdo (`TEXT`, …) |
-| 2 | `length` | quantos bytes de `data` estão em uso (0 a 320) |
-| 32 | `author` | chave pública de quem assinou |
-| 64 | `sig` | assinatura Ed25519 |
-| 64 | `prev` | **assinatura do bloco anterior** |
-| 320 | `data` | o texto, em UTF-8 |
+| bytes | campo          | conteúdo                                       |
+|------:|----------------|------------------------------------------------|
+| 8     | `room`         | nome da sala (padrão `Bizas`)                  |
+| 8     | `stamp`        | instante em nanossegundos desde 1970 (UTC)     |
+| 8     | `nonce`        | número aleatório                               |
+| 4 + 2 | `info`, `type` | uso livre e tipo do conteúdo (`TEXT`, …)       |
+| 2     | `length`       | quantos bytes de `data` estão em uso (0 a 320) |
+| 32    | `author`       | chave pública de quem assinou                  |
+| 64    | `sig`          | assinatura Ed25519                             |
+| 64    | `prev`         | **assinatura do bloco anterior**               |
+| 320   | `data`         | o texto, em UTF-8                              |
 
 - **O que se assina:** os 512 bytes inteiros, com o campo `sig` zerado.
 - **Por que layout fixo:** o navegador (JavaScript) e o servidor (Go) precisam gerar exatamente os
@@ -307,7 +334,7 @@ ignora.
 
 ## Como rodar e testar (no PC)
 
-Requisitos: Go 1.23 ou mais novo, Deno, Docker com buildx (e qemu para arm64), Firefox, `curl`, `jq`.
+Requisitos: Go 1.23 ou mais novo, Deno, Docker com buildx (e qemu para arm64), Firefox, `curl`, `jq` e `zbarimg` (pacote `zbar`, para o teste do navegador ler o QR code).
 
 ```sh
 # testes Go (bloco, validator, server, página embutida)

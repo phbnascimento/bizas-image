@@ -3,7 +3,7 @@
 # em dois "aparelhos" isolados no Firefox headless e confere a cadeia exportada com "validator verify", inclusive com um
 # byte sabotado
 #
-# Requer: go, deno, firefox, curl, ip
+# Requer: go, deno, firefox, curl, ip, zbarimg (lê de volta os QR codes)
 # Uso: scripts/e2e/browser.sh [ip-da-lan]
 #   EXTERNAL_PORT=<porta>  não sobe os binários: testa o server que já responde
 #                          em http://<ip-da-lan>:<porta> (ex.: os containers)
@@ -11,6 +11,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+command -v zbarimg >/dev/null || { echo "ERROR: zbarimg not found (package zbar); the test reads the QR codes with it" >&2; exit 1; }
 IP="${1:-}"
 if [ -z "$IP" ]; then
   IP="$(ip -4 route get 1.1.1.1 | awk '{for (i=1;i<NF;i++) if ($i=="src") print $(i+1)}' || true)"
@@ -55,7 +56,7 @@ done
 
 echo "== page at $BASE"
 RC=0
-SET_DATE_CMD="${SET_DATE_CMD:-}" timeout 60 deno run --allow-net --allow-env=SET_DATE_CMD --allow-run "$ROOT/scripts/e2e/browser.ts" "$BASE" \
+SET_DATE_CMD="${SET_DATE_CMD:-}" timeout 60 deno run --allow-net --allow-env=SET_DATE_CMD --allow-run --allow-write=/tmp "$ROOT/scripts/e2e/browser.ts" "$BASE" \
   | tee "$TMP/browser.out" || RC=${PIPESTATUS[0]}
 
 echo "== validator log"; ${LOG_VALIDATOR:-true}

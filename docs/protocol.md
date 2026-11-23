@@ -20,18 +20,18 @@ navegador ──HTTP/WebSocket──▶ server :5000 ──HTTP interno──▶
 
 Cada mensagem é um bloco de **512 bytes**, com inteiros em little-endian:
 
-| offset | bytes | campo | conteúdo |
-|---:|---:|---|---|
-| 0 | 8 | `room` | nome da sala, completado com zeros (padrão: `Bizas`) |
-| 8 | 8 | `stamp` | `int64`, nanossegundos desde 1970-01-01 UTC, no relógio do validator (seção 3) |
-| 16 | 8 | `nonce` | `uint64` aleatório |
-| 24 | 4 | `info` | `uint32`, livre (hoje 0) |
-| 28 | 2 | `type` | `uint16`: 0 `TEXT`, 1 `MONO`, 2 `MONO_RLE`, 3 `COLORED`, 4 `COLORED_RLE`, 5 `NETWORK_ACTION`, 6 `OTHER` |
-| 30 | 2 | `length` | `int16`, bytes usados de `data` (0 a 320) |
-| 32 | 32 | `author` | chave pública Ed25519 de quem assinou |
-| 64 | 64 | `sig` | assinatura Ed25519 |
-| 128 | 64 | `prev` | `sig` do bloco anterior (zeros no primeiro bloco) |
-| 192 | 320 | `data` | conteúdo; texto em UTF-8, resto zerado |
+| offset | bytes | campo    | conteúdo                                                                                                |
+|-------:|------:|----------|---------------------------------------------------------------------------------------------------------|
+| 0      | 8     | `room`   | nome da sala, completado com zeros (padrão: `Bizas`)                                                    |
+| 8      | 8     | `stamp`  | `int64`, nanossegundos desde 1970-01-01 UTC, no relógio do validator (seção 3)                          |
+| 16     | 8     | `nonce`  | `uint64` aleatório                                                                                      |
+| 24     | 4     | `info`   | `uint32`, livre (hoje 0)                                                                                |
+| 28     | 2     | `type`   | `uint16`: 0 `TEXT`, 1 `MONO`, 2 `MONO_RLE`, 3 `COLORED`, 4 `COLORED_RLE`, 5 `NETWORK_ACTION`, 6 `OTHER` |
+| 30     | 2     | `length` | `int16`, bytes usados de `data` (0 a 320)                                                               |
+| 32     | 32    | `author` | chave pública Ed25519 de quem assinou                                                                   |
+| 64     | 64    | `sig`    | assinatura Ed25519                                                                                      |
+| 128    | 64    | `prev`   | `sig` do bloco anterior (zeros no primeiro bloco)                                                       |
+| 192    | 320   | `data`   | conteúdo; texto em UTF-8, resto zerado                                                                  |
 
 - **O que se assina:** os 512 bytes com `sig` zerado. Isso inclui os bytes de `data` além de
   `length`.
@@ -60,24 +60,24 @@ receber um bloco novo, porque depende do relógio dele naquele instante.
 
 Os nomes de erro vêm de `bizas.ValidationError`:
 
-| erro | quando |
-|---|---|
-| `FRAUD` | a assinatura não confere |
-| `INVALID_LENGTH` | `length` fora de 0 a 320 |
-| `INVALID_ROOM` | sala diferente da cabeça |
-| `NO_TIMESTAMP_CONTINUITY` | `stamp` menor que o da cabeça |
-| `NO_HASH_CONTINUITY` | `prev` diferente da `sig` da cabeça, ou uma gênese com `prev` não zerado |
-| `TIMESTAMP_IN_FUTURE` | `stamp` mais de 5 s à frente do relógio do validator (só na aceitação) |
-| `CORRUPTED_TIMESTAMP` | existe no código, mas hoje nunca ocorre: todo `int64` em nanossegundos é uma data válida |
+| erro                      | quando                                                                                   |
+|---------------------------|------------------------------------------------------------------------------------------|
+| `FRAUD`                   | a assinatura não confere                                                                 |
+| `INVALID_LENGTH`          | `length` fora de 0 a 320                                                                 |
+| `INVALID_ROOM`            | sala diferente da cabeça                                                                 |
+| `NO_TIMESTAMP_CONTINUITY` | `stamp` menor que o da cabeça                                                            |
+| `NO_HASH_CONTINUITY`      | `prev` diferente da `sig` da cabeça, ou uma gênese com `prev` não zerado                 |
+| `TIMESTAMP_IN_FUTURE`     | `stamp` mais de 5 s à frente do relógio do validator (só na aceitação)                   |
+| `CORRUPTED_TIMESTAMP`     | existe no código, mas hoje nunca ocorre: todo `int64` em nanossegundos é uma data válida |
 
 ## 2. Rotas públicas do server (porta 5000; 80 no host)
 
-| rota | resposta |
-|---|---|
-| `GET /` | a página (`index.html`, `style.css`, `app.js`, `bizas.js`, `when.js`, `nacl-fast.min.js`), embutida no binário com `go:embed`; nada vem de CDN |
-| `GET /health` | `200 ok` só se o `/health` do validator também responder 200; senão `503` |
-| `GET /chain` | a cadeia inteira, com os blocos de 512 bytes concatenados (`application/octet-stream`), para exportar e verificar fora da Pi |
-| `GET /ws` | WebSocket do chat (seção 3) |
+| rota          | resposta                                                                                                                                       |
+|---------------|------------------------------------------------------------------------------------------------------------------------------------------------|
+| `GET /`       | a página (`index.html`, `style.css`, `app.js`, `bizas.js`, `when.js`, `nacl-fast.min.js`), embutida no binário com `go:embed`; nada vem de CDN |
+| `GET /health` | `200 ok` só se o `/health` do validator também responder 200; senão `503`                                                                      |
+| `GET /chain`  | a cadeia inteira, com os blocos de 512 bytes concatenados (`application/octet-stream`), para exportar e verificar fora da Pi                   |
+| `GET /ws`     | WebSocket do chat (seção 3)                                                                                                                    |
 
 **Porta de manutenção do server:** `ADMIN_ADDR`, padrão `127.0.0.1:5001`, só no loopback **de dentro do
 container**. Ela não é publicada no host, e o server se recusa a iniciar se `ADMIN_ADDR` não for um
@@ -90,10 +90,10 @@ endereço de loopback. Tem uma rota:
 
 Quem chama essa rota são os comandos de manutenção, rodados como root no console da placa:
 
-| comando | o que faz |
-|---|---|
-| `set-date AAAA-MM-DD-hh-mm-ss [--tz FUSO]` | informa a hora real. Sem `--tz`, a hora digitada é em UTC; `--tz -03:00` (ou `--tz=-03:00`, `+05:30`, `Z`) diz em que fuso ela foi digitada |
-| `set-auto-date` | consulta a hora por SNTP (`pool.ntp.org`, `time.google.com`, `time.cloudflare.com`) pela rede conectada e a informa; sem rede, sai com erro e sugere o `set-date` |
+| comando                                    | o que faz                                                                                                                                                         |
+|--------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `set-date AAAA-MM-DD-hh-mm-ss [--tz FUSO]` | informa a hora real. Sem `--tz`, a hora digitada é em UTC; `--tz -03:00` (ou `--tz=-03:00`, `+05:30`, `Z`) diz em que fuso ela foi digitada                       |
+| `set-auto-date`                            | consulta a hora por SNTP (`pool.ntp.org`, `time.google.com`, `time.cloudflare.com`) pela rede conectada e a informa; sem rede, sai com erro e sugere o `set-date` |
 
 Os dois são scripts em `/usr/bin` que repassam o pedido ao container (`docker exec bizas-server /app
 set-date …`). Nenhum deles mexe no relógio da placa.
@@ -184,11 +184,11 @@ grava, mas com o relógio do validator, e não com o do aparelho:
 Como o `stamp` pode não ser hora de calendário, a página escolhe o que mostrar
 ([`when.js`](../application/server/static/when.js)):
 
-| situação | a página mostra |
-|---|---|
-| mensagem da execução atual do validator, sem `set-date` | a **idade** da mensagem ("just now", "5 min ago"), medida no relógio da placa |
-| mensagem da execução atual, depois de um `set-date` ou `set-auto-date` | **data e hora**: `stamp + real_offset`, no fuso do aparelho |
-| mensagem anterior a `run_start` | "earlier session": o tempo desligado não foi contado, então nenhuma hora seria confiável |
+| situação                                                               | a página mostra                                                                          |
+|------------------------------------------------------------------------|------------------------------------------------------------------------------------------|
+| mensagem da execução atual do validator, sem `set-date`                | a **idade** da mensagem ("just now", "5 min ago"), medida no relógio da placa            |
+| mensagem da execução atual, depois de um `set-date` ou `set-auto-date` | **data e hora**: `stamp + real_offset`, no fuso do aparelho                              |
+| mensagem anterior a `run_start`                                        | "earlier session": o tempo desligado não foi contado, então nenhuma hora seria confiável |
 
 O texto é atualizado a cada 15 s. Os carimbos assinados nunca mudam: o `set-date` só muda a exibição.
 ### Conferência no navegador
@@ -198,21 +198,21 @@ para isso.
 
 ## 4. API interna do validator (porta 8081, sem porta no host)
 
-| rota | resposta |
-|---|---|
-| `GET /health` | `200 ok`, só depois de a cadeia gravada ter sido carregada e revalidada |
-| `GET /chain` | os blocos de 512 bytes concatenados, com o relógio efetivo no cabeçalho `X-Bizas-Now` (ns) |
-| `POST /blocks` | corpo de exatamente 512 bytes (`application/octet-stream`) |
+| rota           | resposta                                                                                   |
+|----------------|--------------------------------------------------------------------------------------------|
+| `GET /health`  | `200 ok`, só depois de a cadeia gravada ter sido carregada e revalidada                    |
+| `GET /chain`   | os blocos de 512 bytes concatenados, com o relógio efetivo no cabeçalho `X-Bizas-Now` (ns) |
+| `POST /blocks` | corpo de exatamente 512 bytes (`application/octet-stream`)                                 |
 
 Respostas do `POST /blocks`:
 
-| status | corpo | quando |
-|---|---|---|
-| `200` | vazio | aceito, **gravado em disco** (`fsync`) e acrescentado |
-| `409` | `{"error": "<ValidationError>", "head": "<hex>"}` | recusado pelas regras da seção 1; `head` vem vazio se a cadeia estiver vazia |
-| `500` | `{"error": "STORAGE_ERROR"}` | o bloco era válido, mas a gravação falhou; a cadeia ficou como estava |
-| `400` | `{"error": "INVALID_SIZE"}` | corpo menor que 512 bytes |
-| `413` | `{"error": "INVALID_SIZE"}` | corpo maior que 512 bytes |
+| status | corpo                                             | quando                                                                       |
+|--------|---------------------------------------------------|------------------------------------------------------------------------------|
+| `200`  | vazio                                             | aceito, **gravado em disco** (`fsync`) e acrescentado                        |
+| `409`  | `{"error": "<ValidationError>", "head": "<hex>"}` | recusado pelas regras da seção 1; `head` vem vazio se a cadeia estiver vazia |
+| `500`  | `{"error": "STORAGE_ERROR"}`                      | o bloco era válido, mas a gravação falhou; a cadeia ficou como estava        |
+| `400`  | `{"error": "INVALID_SIZE"}`                       | corpo menor que 512 bytes                                                    |
+| `413`  | `{"error": "INVALID_SIZE"}`                       | corpo maior que 512 bytes                                                    |
 
 O validator trata um bloco de cada vez, sob um lock, e confere o bloco novo contra a cabeça com o
 mesmo `bizas.ChainVerify` coberto pelo vetor de teste.
@@ -240,8 +240,9 @@ da cadeia é guardado.
 
 ## 5. Identidade e impressão digital no navegador
 
-- **Chave:** um par Ed25519 gerado com `nacl.randomBytes` (que usa `crypto.getRandomValues`) a partir
-  de uma seed de 32 bytes guardada no `localStorage` (`bizas.seed`).
+- **Chave:** um par Ed25519 derivado de uma seed de 32 bytes, que a pessoa gera com `nacl.randomBytes` (que
+  usa `crypto.getRandomValues`) ou cola em hex na primeira sessão. A página mostra a chave pública e só grava a
+  seed no `localStorage` (`bizas.seed`) depois da confirmação; até lá não conecta.
 - **ID mostrado:** os 4 primeiros bytes da chave pública, em hex.
 - **Impressão digital da cadeia:** a página mostra os 8 primeiros bytes (16 hex) da assinatura do último
   bloco, que também aparece por inteiro ao passar o mouse. Como cada assinatura cobre o `prev`, ela
@@ -292,6 +293,18 @@ Mais dois pontos:
   Deno com o mesmo tweetnacl embutido (`deno test --allow-read application/server/bizas.test.js`).
 - **Tweetnacl conferido:** ele é o 1.0.3 do registro do npm, com o `integrity` conferido por
   `scripts/fetch-tweetnacl.sh`, e um teste do Go confere o SHA-256 do arquivo embutido.
+- **Teste de fraude na página:** opção das configurações que expõe os campos do bloco (menos o `data`) para edição
+  manual e mostra o código de recusa do validator. O teste no navegador monta blocos editados e confere, contra o
+  validator de verdade, `NO_TIMESTAMP_CONTINUITY`, `INVALID_ROOM`, `NO_HASH_CONTINUITY`, `INVALID_LENGTH` (acima do
+  limite e negativo), `FRAUD` (sem assinar de novo, `sig` digitada, `author` trocado) e `TIMESTAMP_IN_FUTURE`.
+  `CORRUPTED_TIMESTAMP` não é alcançável: todo `int64` é um carimbo válido (`IsTimestampValid`).
+  Os modos de edição do `room` (texto ou hexadecimal) e do `stamp` (nanossegundos ou data UTC) e o congelamento do
+  `stamp` também passam por esse teste, e o `fraud.js` tem testes próprios (`bizas.test.js`) para a conversão sem
+  perda entre data e nanossegundos.
+- **QR code conferido:** o `qrcode.js` (qrcode-generator 1.4.4, MIT) vem do registro do npm com o `integrity`
+  conferido por `scripts/fetch-qrcode.sh`, e o mesmo teste do Go confere o SHA-256. O teste no navegador lê de
+  volta, com o `zbarimg`, o QR code da chave privada (tela da chave) e o da chave pública (painel) e compara com
+  a chave exibida.
 - **Testes Go:** `go test -race ./...` em `application/`. Cobrem:
   - persistência: gravar e reabrir; pedaço final incompleto descartado; bloco corrompido no meio
     (prefixo mantido, resto na quarentena); falha de gravação (`STORAGE_ERROR`, nada muda);

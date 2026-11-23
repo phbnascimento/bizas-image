@@ -7,13 +7,13 @@ São dois containers, cada um com um binário Go estático em `FROM scratch`:
 
 O protocolo entre os dois está em [`protocol.md`](protocol.md).
 
-| arquivo | papel |
-|---|---|
-| [`docker/Dockerfile.validator`](../docker/Dockerfile.validator), [`docker/Dockerfile.server`](../docker/Dockerfile.server) | build das imagens (contexto: `application/`) |
-| [`docker/version.env`](../docker/version.env) | versão das imagens, nomes da rede e do volume, `golang` fixado por digest |
-| [`docker/provision.sh`](../docker/provision.sh) | `docker load`, criação da rede, do volume e dos containers (POSIX `sh`, para o init da placa) |
-| [`scripts/containers-build.sh`](../scripts/containers-build.sh) | build, `docker save`, conferência da arquitetura dentro do tar e SHA-256 em `evidence/` |
-| [`scripts/containers-test.sh`](../scripts/containers-test.sh) | testa no PC tudo o que este documento afirma |
+| arquivo                                                                                                                    | papel                                                                                         |
+|----------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------|
+| [`docker/Dockerfile.validator`](../docker/Dockerfile.validator), [`docker/Dockerfile.server`](../docker/Dockerfile.server) | build das imagens (contexto: `application/`)                                                  |
+| [`docker/version.env`](../docker/version.env)                                                                              | versão das imagens, nomes da rede e do volume, `golang` fixado por digest                     |
+| [`docker/provision.sh`](../docker/provision.sh)                                                                            | `docker load`, criação da rede, do volume e dos containers (POSIX `sh`, para o init da placa) |
+| [`scripts/containers-build.sh`](../scripts/containers-build.sh)                                                            | build, `docker save`, conferência da arquitetura dentro do tar e SHA-256 em `evidence/`       |
+| [`scripts/containers-test.sh`](../scripts/containers-test.sh)                                                              | testa no PC tudo o que este documento afirma                                                  |
 
 ## Por que dois containers
 
@@ -36,10 +36,10 @@ publicada no host.
 
 Tamanhos medidos no build arm64 de 18/11/2026:
 
-| | tar | binário `/app` |
-|---|---:|---:|
-| validator | 2 837 504 B | 6 684 796 B |
-| server | 2 990 592 B | 7 078 012 B |
+|           | tar         | binário `/app` |
+|-----------|------------:|---------------:|
+| validator | 2 837 504 B | 6 684 796 B    |
+| server    | 2 990 592 B | 7 078 012 B    |
 
 O tar é menor que o binário porque a camada vai comprimida. O SHA-256 de cada tar é gravado pelo
 `containers-build.sh` em `evidence/hashes-containers.txt`. O hash identifica o artefato, mas não
@@ -47,14 +47,14 @@ prova reprodutibilidade.
 
 ## Rede, portas e volume
 
-| | validator | server |
-|---|---|---|
-| rede | `bizas-net` (definida pelo usuário), alias `validator` | `bizas-net` |
-| porta no container | 8081 | 5000 |
-| porta no host | **nenhuma** | **80 → 5000** (a porta de manutenção, `127.0.0.1:5001`, não é publicada) |
-| volume | `bizas-data` em `/data` (a cadeia: `/data/chain.bin`) | **nenhum** |
-| variáveis | `ADDR` (padrão `:8081`), `DATA_DIR` (padrão `/data`) | `ADDR` (padrão `:5000`), `ADMIN_ADDR` (padrão `127.0.0.1:5001`, só loopback), `VALIDATOR_URL` (padrão `http://validator:8081`) |
-| dispositivos | nenhum | nenhum |
+|                    | validator                                              | server                                                                                                                         |
+|--------------------|--------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------|
+| rede               | `bizas-net` (definida pelo usuário), alias `validator` | `bizas-net`                                                                                                                    |
+| porta no container | 8081                                                   | 5000                                                                                                                           |
+| porta no host      | **nenhuma**                                            | **80 → 5000** (a porta de manutenção, `127.0.0.1:5001`, não é publicada)                                                       |
+| volume             | `bizas-data` em `/data` (a cadeia: `/data/chain.bin`)  | **nenhum**                                                                                                                     |
+| variáveis          | `ADDR` (padrão `:8081`), `DATA_DIR` (padrão `/data`)   | `ADDR` (padrão `:5000`), `ADMIN_ADDR` (padrão `127.0.0.1:5001`, só loopback), `VALIDATOR_URL` (padrão `http://validator:8081`) |
+| dispositivos       | nenhum                                                 | nenhum                                                                                                                         |
 
 - **Rede definida pelo usuário:** só nela o nome `validator` resolve pelo DNS embutido do Docker; na
   `bridge` padrão, não.
@@ -76,13 +76,13 @@ prova reprodutibilidade.
 
 Opções aplicadas aos dois containers pelo `provision.sh`:
 
-| opção | efeito |
-|---|---|
-| `USER 65532:65532` (Dockerfile) | **não roda como root** |
-| `--cap-drop ALL` | nenhuma capability do Linux; nenhuma é necessária, porque as portas internas são acima de 1024 |
-| `--security-opt no-new-privileges` | nenhum processo ganha privilégio por setuid |
-| `--read-only` | rootfs somente leitura; o validator só escreve no volume |
-| `--pids-limit 64` | limita o número de processos |
+| opção                              | efeito                                                                                         |
+|------------------------------------|------------------------------------------------------------------------------------------------|
+| `USER 65532:65532` (Dockerfile)    | **não roda como root**                                                                         |
+| `--cap-drop ALL`                   | nenhuma capability do Linux; nenhuma é necessária, porque as portas internas são acima de 1024 |
+| `--security-opt no-new-privileges` | nenhum processo ganha privilégio por setuid                                                    |
+| `--read-only`                      | rootfs somente leitura; o validator só escreve no volume                                       |
+| `--pids-limit 64`                  | limita o número de processos                                                                   |
 
 - **Não usados:** `--privileged`, a montagem do `docker.sock` e o repasse de dispositivos. Por isso
   não há nada a justificar nesse ponto.
