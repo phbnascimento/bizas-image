@@ -173,6 +173,97 @@ func TestRejections(t *testing.T) {
 	}
 }
 
+// signWithoutWork assina o bloco num nonce cuja assinatura não começa com workBits bits zero (o oposto de Mine)
+func signWithoutWork(k PrivateKey, b *Block, workBits uint32) {
+	for {
+		b.Sign(k)
+		if !b.HasWork(workBits) {
+			return
+		}
+		b.Nonce++
+	}
+}
+
+// Prova de trabalho: o info do gênese é o N da cadeia, e toda assinatura, inclusive a do gênese, começa com N bits zero
+func TestProofOfWork(t *testing.T) {
+	const n = 6
+	a, b := key(t, 1), key(t, 2)
+	genesis := func() Block {
+		g := block(t, a, nil, "genesis")
+		g.Info = n
+		g.Mine(a, n)
+		return g
+	}
+
+	t.Run("mined blocks are accepted", func(t *testing.T) {
+		f := newFixture(t)
+		g := genesis()
+		if st, rej := f.post(g.MarshalBinary()); st != 200 {
+			t.Fatalf("mined genesis: %d %+v", st, rej)
+		}
+		next := NextBlock([]Block{g})
+		next.Stamp = g.Stamp + 1
+		next.UploadString("mined by someone else")
+		next.Mine(b, n)
+		if st, rej := f.post(next.MarshalBinary()); st != 200 {
+			t.Fatalf("mined block: %d %+v", st, rej)
+		}
+		if CountLeadingZeroBits(next.Sig[:]) < n {
+			t.Fatal("Mine returned a signature without the work")
+		}
+	})
+	t.Run("block without work", func(t *testing.T) {
+		f := newFixture(t)
+		g := genesis()
+		f.post(g.MarshalBinary())
+		next := NextBlock([]Block{g})
+		next.Stamp = g.Stamp + 1
+		next.UploadString("lazy")
+		signWithoutWork(b, &next, n)
+		st, rej := f.post(next.MarshalBinary())
+		if st != 409 || rej.Error != "INSUFFICIENT_WORK" || rej.Head == "" {
+			t.Fatalf("want 409 INSUFFICIENT_WORK with the head, got %d %+v", st, rej)
+		}
+		if got := len(f.chain()); got != BlockSize {
+			t.Fatalf("rejection changed the chain: %d bytes", got)
+		}
+	})
+	t.Run("genesis without its own work", func(t *testing.T) {
+		f := newFixture(t)
+		g := block(t, a, nil, "genesis")
+		g.Info = n
+		signWithoutWork(a, &g, n)
+		if st, rej := f.post(g.MarshalBinary()); st != 409 || rej.Error != "INSUFFICIENT_WORK" {
+			t.Fatalf("want 409 INSUFFICIENT_WORK, got %d %+v", st, rej)
+		}
+	})
+	t.Run("genesis asking more than MaxWorkBits", func(t *testing.T) {
+		f := newFixture(t)
+		g := block(t, a, nil, "genesis")
+		g.Info = MaxWorkBits + 1
+		g.Sign(a)
+		if st, rej := f.post(g.MarshalBinary()); st != 409 || rej.Error != "INVALID_WORK_BITS" {
+			t.Fatalf("want 409 INVALID_WORK_BITS, got %d %+v", st, rej)
+		}
+	})
+	t.Run("the whole chain is checked against the genesis", func(t *testing.T) {
+		g := genesis()
+		next := NextBlock([]Block{g})
+		next.Stamp = g.Stamp + 1
+		next.UploadString("lazy")
+		signWithoutWork(b, &next, n)
+		if e, i := VerifyChain([]Block{g, next}); e != InsufficientWork || i != 1 {
+			t.Fatalf("VerifyChain = %v,%d; want INSUFFICIENT_WORK,1", e, i)
+		}
+		big := block(t, a, nil, "genesis")
+		big.Info = MaxWorkBits + 1
+		big.Sign(a)
+		if e, i := VerifyChain([]Block{big}); e != InvalidWorkBits || i != 0 {
+			t.Fatalf("VerifyChain = %v,%d; want INVALID_WORK_BITS,0", e, i)
+		}
+	})
+}
+
 func TestGenesisMustHaveZeroPrev(t *testing.T) {
 	f := newFixture(t)
 	g := block(t, key(t, 1), nil, "genesis")

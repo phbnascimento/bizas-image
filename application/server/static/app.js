@@ -1,8 +1,8 @@
 // Cliente do chat: gera/guarda a chave, assina cada mensagem e mantém a cópia local da cadeia a partir do que o server
 // transmite. Protocolo: docs/protocol.md
 import {
-  BLOCK_SIZE, MAX_DATA_LENGTH, decodeBlock, equalBytes, fingerprint, fromHex, hex,
-  nextBlock, signBlock, textOf, uploadString, verifyBlock,
+  BLOCK_SIZE, DEFAULT_WORK_BITS, MAX_DATA_LENGTH, MAX_WORK_BITS, decodeBlock, equalBytes, fingerprint, fromHex, hasWork,
+  hex, mineBlock, nextBlock, textOf, uploadString, verifyBlock,
 } from "./bizas.js";
 import { formatWhen } from "./when.js";
 import { applyStatic, initLang, onLangChange, setLang, t } from "./i18n.js";
@@ -18,7 +18,10 @@ const ui = {
   panel: $("panel"), pKey: $("p-key"), pName: $("p-name"), pNote: $("p-note"), pFirst: $("p-first"), pCount: $("p-count"),
   pClose: $("p-close"), msgError: $("msg-error"), fraud: $("fraud"), fraudFields: $("fraud-fields"), fraudResign: $("fraud-resign"), fraudSync: $("fraud-sync"), fraudStampDate: $("fraud-stampdate"), fraudRoomHex: $("fraud-roomhex"), fraudReset: $("fraud-reset"), fraudResult: $("fraud-result"),
   fraudToggle: $("fraud-toggle"), pHue: $("p-hue"), pQr: $("p-qr"), pReset: $("p-reset"),
+  work: $("work"), workBox: $("work-box"), workBits: $("work-bits"), mining: $("mining"),
 };
+ui.workBits.max = String(MAX_WORK_BITS);
+ui.workBits.value = String(DEFAULT_WORK_BITS);
 const ZERO_SIG = new Uint8Array(64);
 const MAX_RETRIES = 3;
 
@@ -162,7 +165,9 @@ paintWho(ui.me, keyPair.publicKey);
 // --- cadeia local ----------------------------------------------------------
 let head = null;   // último bloco aceito
 let height = 0;
-let pending = null; // { text, sig, tries }
+let pending = null; // { text, sig, tries, fraud?, mining? }: sig é null enquanto a prova de trabalho roda
+// N da cadeia (o info do gênese): quantos bits zero cada assinatura precisa ter. null com a cadeia vazia
+let workBits = null;
 
 // Diferença, em ns, entre o relógio do validator e o deste aparelho. Quem fornece a hora é a placa: o carimbo assinado
 // é o relógio do validator, não o do celular. Recalculada a cada conexão (aviso "time")
@@ -296,6 +301,16 @@ function apply(block) {
     setMsgError("status.badsig");
     return false;
   }
+  // A prova de trabalho também é conferida aqui: o gênese define N (até MAX_WORK_BITS) e todo bloco o cumpre
+  const isGenesis = !head;
+  if ((isGenesis && block.info > MAX_WORK_BITS) || !hasWork(block, isGenesis ? block.info : workBits)) {
+    setMsgError("status.badwork");
+    return false;
+  }
+  if (isGenesis) {
+    workBits = block.info;
+    ui.work.textContent = String(workBits);
+  }
   head = block;
   const key = hex(block.author);
   const info = authors.get(key);
@@ -310,24 +325,28 @@ function apply(block) {
   ui.room.textContent = roomName(block.room);
   render(block);
   fillPanel();
-  if (pending && equalBytes(block.sig, pending.sig)) {
+  if (pending?.sig && equalBytes(block.sig, pending.sig)) {
     if (pending.fraud) {
       setFraudResult("fraud.accepted", "ok");
       for (const k of Object.keys(overrides)) delete overrides[k];
       draftNonce = newNonce();
-      if (frozenNs !== null) frozenNs = nowNs(); // com o stamp congelado, o próximo rascunho congela de novo no instante atual
+      // Com o stamp congelado, o próximo rascunho congela de novo no instante atual
+      if (frozenNs !== null) frozenNs = nowNs();
     }
     pending = null;
     ui.text.value = "";
     updateCount();
   }
   refreshFraud();
+  updateCount(); // o campo de N do gênese some quando a cadeia deixa de estar vazia
   return true;
 }
 
 function resetChain() {
   head = null;
   height = 0;
+  workBits = null;
+  ui.work.textContent = "—";
   authors.clear();
   ui.height.textContent = "0";
   ui.fingerprint.textContent = "—";
@@ -467,15 +486,57 @@ function updateCount() {
   ui.count.textContent = `${n}/${MAX_DATA_LENGTH}`;
   ui.count.classList.toggle("over", n > MAX_DATA_LENGTH);
   ui.text.disabled = !synced;
-  ui.send.disabled = !synced || pending !== null || isBlank(ui.text.value) || n > MAX_DATA_LENGTH;
+  // Com a cadeia vazia, quem envia cria o gênese e escolhe o N da sala
+  ui.workBox.hidden = !(synced && !head);
+  const badBits = !head && chosenBits() === null;
+  ui.workBits.classList.toggle("over", badBits);
+  ui.send.disabled = !synced || pending !== null || isBlank(ui.text.value) || n > MAX_DATA_LENGTH || badBits;
 }
 
-function sendText(text, tries) {
+// N digitado para o gênese: inteiro de 0 a MAX_WORK_BITS, ou null
+function chosenBits() {
+  const v = ui.workBits.value.trim();
+  if (!/^\d+$/.test(v)) return null;
+  const n = Number(v);
+  return n <= MAX_WORK_BITS ? n : null;
+}
+
+// Linha de progresso da prova de trabalho, abaixo da barra de mensagem. null esconde
+function setMining(tries) {
+  ui.mining.hidden = tries === null;
+  if (tries !== null) {
+    ui.mining.dataset.i18n = "msg.mining";
+    ui.mining.dataset.i18nVars = JSON.stringify({ n: tries });
+    ui.mining.textContent = t("msg.mining", { n: tries });
+  }
+}
+
+// Monta o bloco, faz a prova de trabalho (varia o nonce até a assinatura começar com N bits zero) e envia. Se a cabeça
+// mudar no meio (outro aparelho encadeou antes), recomeça sobre a nova; sem conexão, o reenvio fica para depois do
+// histórico (onBlocks)
+async function sendText(text, tries) {
+  const startHead = head;
   const block = nextBlock(head, nowNs());
   uploadString(block, text);
-  const bytes = signBlock(block, keyPair.secretKey);
-  pending = { text, sig: block.sig, tries };
+  const bits = head ? workBits : chosenBits();
+  if (!head) block.info = bits;
+  block.author = keyPair.publicKey.slice();
+  const token = {};
+  pending = { text, sig: null, tries, mining: token };
   updateCount();
+  const current = () => pending?.mining === token;
+  const bytes = await mineBlock(block, keyPair.secretKey, bits, {
+    onProgress: (n) => { if (current()) setMining(n); },
+    isCancelled: () => !current() || head !== startHead || !synced,
+  });
+  if (!current()) return; // outro envio tomou o lugar deste
+  setMining(null);
+  if (!bytes) {
+    if (synced) sendText(text, tries);
+    return;
+  }
+  pending.sig = block.sig;
+  pending.mining = null;
   ws.send(bytes);
 }
 
@@ -490,8 +551,8 @@ function retry() {
 }
 
 // --- teste de fraude -------------------------------------------------------
-// Ligado nas configurações. A barra de baixo mostra todos os campos do bloco (menos o data, que é o texto) para editar à
-// mão. overrides guarda só o que a pessoa digitou; o resto acompanha a mensagem normal
+// Ligado nas configurações. A barra de baixo mostra todos os campos do bloco (menos o data, que é o texto) para editar
+// à mão. overrides guarda só o que a pessoa digitou; o resto acompanha a mensagem normal
 let fraudOn = false;
 const overrides = {};
 const newNonce = () => new DataView(nacl.randomBytes(8).buffer).getBigUint64(0, true);
@@ -526,10 +587,11 @@ for (const field of FIELDS) {
   rows.set(field.name, { row, input, btn, err });
 }
 
-function composeFraud() {
+// extra substitui qualquer argumento (o envio fixa o instante para compor duas vezes o mesmo bloco)
+function composeFraud(extra = {}) {
   return composeBlock({
     head, text: ui.text.value, nowNs: frozenNs ?? nowNs(), nonce: draftNonce, keyPair, overrides, resign: ui.fraudResign.checked,
-    modes: fraudModes(),
+    modes: fraudModes(), genesisBits: chosenBits() ?? 0, ...extra,
   });
 }
 
@@ -595,17 +657,51 @@ ui.fraudReset.addEventListener("click", () => {
 });
 onLangChange(refreshFraud);
 
-function sendFraud() {
-  const res = composeFraud();
+// Envia o bloco do teste de fraude. A prova de trabalho segue a mensagem normal: com "assinar automaticamente", minera
+// o bloco editado (sem trocar o author); sem ela, minera o bloco sem edições e usa a assinatura dele. Um nonce ou uma
+// sig digitados vão como estão, sem mineração
+async function sendFraud() {
+  const now = frozenNs ?? nowNs();
+  let res = composeFraud({ nowNs: now });
   if (!res.bytes) {
     refreshFraud();
     setFraudResult("fraud.invalid", "bad");
     return;
   }
-  pending = { text: ui.text.value, sig: res.effective.sig, tries: MAX_RETRIES, fraud: true };
+  // Um gênese que pede mais que MAX_WORK_BITS é recusado antes do trabalho: assina uma vez só
+  const bits = head ? workBits : (res.effective.info <= MAX_WORK_BITS ? res.effective.info : 0);
+  const token = {};
+  pending = { text: ui.text.value, sig: null, tries: MAX_RETRIES, fraud: true, mining: token };
   setFraudResult("fraud.sending");
   updateCount();
-  ws.send(res.bytes);
+  const current = () => pending?.mining === token;
+  const opts = { onProgress: (n) => { if (current()) setMining(n); }, isCancelled: () => !current() || !synced };
+  let bytes = res.bytes;
+  if (!("sig" in overrides)) {
+    if (!ui.fraudResign.checked) {
+      const plain = composeFraud({ nowNs: now, overrides: {}, resign: true }).effective;
+      if (await mineBlock(plain, keyPair.secretKey, bits, opts)) {
+        draftNonce = plain.nonce;
+        res = composeFraud({ nowNs: now });
+        bytes = res.bytes;
+      } else {
+        bytes = null;
+      }
+    } else if (!("nonce" in overrides)) {
+      bytes = await mineBlock(res.effective, keyPair.secretKey, bits, opts);
+    }
+  }
+  if (!current()) return;
+  setMining(null);
+  if (!bytes) {
+    pending = null;
+    setFraudResult("");
+    updateCount();
+    return;
+  }
+  pending.sig = res.effective.sig;
+  pending.mining = null;
+  ws.send(bytes);
 }
 
 ui.text.addEventListener("input", () => { updateCount(); refreshFraud(); });
@@ -614,11 +710,8 @@ ui.form.addEventListener("submit", (ev) => {
   const text = ui.text.value;
   if (!synced || pending || isBlank(text)) return;
   setMsgError();
-  try {
-    if (fraudOn) sendFraud(); else sendText(text, 1);
-  } catch (err) {
-    setMsgError(null, {}, err.message);
-  }
+  (fraudOn ? sendFraud() : sendText(text, 1)).catch((err) => setMsgError(null, {}, err.message));
 });
+ui.workBits.addEventListener("input", () => { updateCount(); refreshFraud(); });
 
 connect();

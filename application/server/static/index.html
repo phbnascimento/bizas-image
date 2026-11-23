@@ -60,6 +60,7 @@ document.documentElement.dataset.theme = th === "light" || th === "dark" ? th
   <span class="info"><span data-i18n="head.you">you</span> <code id="me">—</code></span>
   <span class="info"><span data-i18n="head.blocks">blocks</span> <code id="height">0</code></span>
   <span class="info"><span data-i18n="head.fingerprint">fingerprint</span> <code id="fingerprint">—</code></span>
+  <span class="info"><span data-i18n="head.work">zero bits</span> <code id="work">—</code></span>
   <span id="status" data-i18n="status.connecting">connecting…</span>
   <button class="gear" type="button" data-i18n-aria="settings.title" aria-label="Settings"><svg viewBox="0 0 24 24" aria-hidden="true"><g transform="translate(12 12)" fill="currentColor"><circle r="6.5" fill="none" stroke="currentColor" stroke-width="3"/><rect x="-1.8" y="-10.5" width="3.6" height="4.5"/><rect x="-1.8" y="-10.5" width="3.6" height="4.5" transform="rotate(45)"/><rect x="-1.8" y="-10.5" width="3.6" height="4.5" transform="rotate(90)"/><rect x="-1.8" y="-10.5" width="3.6" height="4.5" transform="rotate(135)"/><rect x="-1.8" y="-10.5" width="3.6" height="4.5" transform="rotate(180)"/><rect x="-1.8" y="-10.5" width="3.6" height="4.5" transform="rotate(225)"/><rect x="-1.8" y="-10.5" width="3.6" height="4.5" transform="rotate(270)"/><rect x="-1.8" y="-10.5" width="3.6" height="4.5" transform="rotate(315)"/></g></svg></button>
 </header>
@@ -67,13 +68,17 @@ document.documentElement.dataset.theme = th === "light" || th === "dark" ? th
 <div id="composer">
   <form id="form" autocomplete="off">
     <input id="text" maxlength="320" data-i18n-placeholder="msg.placeholder" placeholder="Message (signed on this device)" disabled>
+    <label id="work-box" class="work" hidden><span data-i18n="msg.workBits">Zero bits</span><input id="work-bits" type="number"
+      min="0" max="20" step="1" value="10" inputmode="numeric" data-i18n-aria="msg.workHint" data-i18n-title aria-label="Zero bits"></label>
     <span id="count">0/320</span>
     <button id="send" data-i18n="msg.send" disabled>Send</button>
   </form>
   <div id="msg-error" role="alert" hidden></div>
+  <div id="mining" role="status" hidden></div>
   <section id="fraud" hidden>
     <p class="hint" data-i18n="fraud.hint">Edit any field, then send. Fields you have not touched follow the normal message. The data
-    field is not shown, since it is the message text field.</p>
+    field is not shown, since it is the message text field. On sending, the proof of work changes the nonce, unless you typed the
+    nonce or the sig.</p>
     <div id="fraud-fields"></div>
     <div class="ftools">
       <button id="fraud-reset" type="button" data-i18n="fraud.resetAll" disabled>Reset all fields</button>

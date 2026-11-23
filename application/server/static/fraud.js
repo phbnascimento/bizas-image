@@ -101,13 +101,15 @@ export function convertText(field, text, from, to) {
 
 // Monta o bloco. overrides: { campo: texto digitado }. nonce: o sorteado para este rascunho (fixo, para a caixa não
 // mudar a cada atualização). resign: se a assinatura é refeita depois das edições; se não, vai a assinatura do bloco
-// sem edições, que deixa de bater (FRAUD)
+// sem edições, que deixa de bater (FRAUD). genesisBits: o info do bloco quando ele é o gênese (o N da cadeia). A
+// assinatura aqui é feita uma vez só, sem prova de trabalho: quem minera é o envio, no app.js
 //
 // Devolve { effective, errors: { campo: { key, vars } }, bytes }; bytes é null se algum campo estiver inválido.
 // Lança se o texto não couber no data
-export function composeBlock({ head, text, nowNs, nonce, keyPair, overrides, resign, modes = {} }) {
+export function composeBlock({ head, text, nowNs, nonce, keyPair, overrides, resign, modes = {}, genesisBits = 0 }) {
   const base = nextBlock(head, nowNs);
   base.nonce = nonce;
+  if (!head) base.info = genesisBits;
   uploadString(base, text);
   base.author = keyPair.publicKey.slice();
   const encodeWith = (b, sig) => encodeBlock({ ...b, sig });

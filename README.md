@@ -129,7 +129,9 @@ Nas configurações, **Enable Fraud Test** expande a barra de baixo e mostra tod
 mensagem. Cada campo pode ser editado à mão, e o botão *default* ao lado devolve o valor que a mensagem normal
 teria. A opção "sign automatically" refaz a assinatura depois das edições, para que a recusa venha das regras do
 protocolo (`NO_TIMESTAMP_CONTINUITY`, `INVALID_ROOM`, `NO_HASH_CONTINUITY`, `INVALID_LENGTH`,
-`TIMESTAMP_IN_FUTURE`); desmarcada, ou com `sig` ou `author` editados, a recusa é `FRAUD`. O código que o
+`TIMESTAMP_IN_FUTURE`); desmarcada, ou com `sig` ou `author` editados, a recusa é `FRAUD`. Ao enviar, a página faz a
+prova de trabalho variando o `nonce`, a não ser que o `nonce` ou a `sig` tenham sido digitados: um `nonce` digitado
+cuja assinatura não tem os bits zero exigidos é recusado com `INSUFFICIENT_WORK`. O código que o
 validator devolve aparece abaixo dos campos, que ficam logo abaixo da barra de mensagem. "Reset all fields" volta todos os
 campos ao valor padrão de uma vez. Nada é reenviado automaticamente, e o bloco só entra na cadeia se
 o validator o aceitar.
@@ -147,17 +149,18 @@ assinar automaticamente depois das edições. Ao trocar o modo de um campo já e
 
 Cada mensagem vira um **bloco de 512 bytes**, com layout fixo e inteiros em little-endian:
 
-| bytes | campo          | conteúdo                                       |
-|------:|----------------|------------------------------------------------|
-| 8     | `room`         | nome da sala (padrão `Bizas`)                  |
-| 8     | `stamp`        | instante em nanossegundos desde 1970 (UTC)     |
-| 8     | `nonce`        | número aleatório                               |
-| 4 + 2 | `info`, `type` | uso livre e tipo do conteúdo (`TEXT`, …)       |
-| 2     | `length`       | quantos bytes de `data` estão em uso (0 a 320) |
-| 32    | `author`       | chave pública de quem assinou                  |
-| 64    | `sig`          | assinatura Ed25519                             |
-| 64    | `prev`         | **assinatura do bloco anterior**               |
-| 320   | `data`         | o texto, em UTF-8                              |
+| bytes | campo    | conteúdo                                       |
+|------:|----------|------------------------------------------------|
+| 8     | `room`   | nome da sala (padrão `Bizas`)                  |
+| 8     | `stamp`  | instante em nanossegundos desde 1970 (UTC)     |
+| 8     | `nonce`  | número variado pela prova de trabalho          |
+| 4     | `info`   | no gênese, o N da prova de trabalho; livre     |
+| 2     | `type`   | tipo do conteúdo (`TEXT`, …)                   |
+| 2     | `length` | quantos bytes de `data` estão em uso (0 a 320) |
+| 32    | `author` | chave pública de quem assinou                  |
+| 64    | `sig`    | assinatura Ed25519                             |
+| 64    | `prev`   | **assinatura do bloco anterior**               |
+| 320   | `data`   | o texto, em UTF-8                              |
 
 - **O que se assina:** os 512 bytes inteiros, com o campo `sig` zerado.
 - **Por que layout fixo:** o navegador (JavaScript) e o servidor (Go) precisam gerar exatamente os
@@ -189,14 +192,23 @@ navegador ──WebSocket──▶ server ──HTTP interno──▶ validator
 ```
 
 1. O navegador monta o bloco sobre a última mensagem que conhece (a *cabeça*), com a hora que a placa
-   informou ao conectar, assina e envia.
+   informou ao conectar, faz a prova de trabalho (abaixo) e envia.
 2. O **server** não decide nada: confere só se o frame tem 512 bytes e repassa ao validator.
 3. O **validator** confere o bloco contra a cabeça: assinatura, sala, carimbo de tempo que não volta
-   para trás nem está à frente do relógio da placa, e `prev` igual à assinatura da cabeça. Se tudo
+   para trás nem está à frente do relógio da placa, `prev` igual à assinatura da cabeça e a prova de
+   trabalho. Se tudo
    confere, grava o bloco em disco e só então o acrescenta.
 4. O server transmite o bloco aceito a todos os navegadores conectados, inclusive a quem enviou, para
    quem isso serve de confirmação. Confirmado significa gravado.
-5. Cada navegador confere a assinatura de novo, sem confiar no servidor.
+5. Cada navegador confere a assinatura e a prova de trabalho de novo, sem confiar no servidor.
+
+**Prova de trabalho.** Quem envia a primeira mensagem, o gênese, escolhe N, de 0 a 20 (a página sugere 10), e o
+grava no `info` do gênese. Toda assinatura da sala, inclusive a do gênese, tem de começar com N bits zero. A
+assinatura Ed25519 não muda se a mensagem não muda, então o navegador soma 1 ao `nonce` e assina de novo até achar
+uma assinatura com os bits zero: em média, 2^N tentativas (1024 com N = 10). O cabeçalho da página mostra o N da sala,
+e a linha abaixo da barra de mensagem mostra as tentativas enquanto a busca roda. Uma assinatura do tweetnacl levou
+3,5 ms no PC de desenvolvimento (medido no Deno); a estimativa para N = 10 nesse PC é de cerca de 3,6 s por
+mensagem.
 
 **Dois aparelhos ao mesmo tempo.** Se dois aparelhos assinam sobre a mesma cabeça, o validator aceita
 o primeiro e recusa o segundo, devolvendo a cabeça nova. O navegador recusado refaz o bloco sobre ela e

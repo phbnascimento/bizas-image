@@ -157,8 +157,31 @@ const idA = await me(A), idB = await me(B);
 console.log("ids", idA, idB);
 if (idA === idB || !/^[0-9a-f]{8}$/.test(idA)) throw new Error("ids are equal or invalid");
 
+// Prova de trabalho: com a cadeia vazia, quem envia cria o gênese e escolhe N (padrão 10, de 0 a 20). O teste usa 4,
+// para cada mensagem custar poucas assinaturas
+const WORK = 4;
+for (const c of [A, B]) {
+  const box = JSON.parse(await ev(c, `JSON.stringify({ hidden: document.getElementById("work-box").hidden,
+    value: document.getElementById("work-bits").value, max: document.getElementById("work-bits").max,
+    work: document.getElementById("work").textContent })`));
+  if (box.hidden || box.value !== "10" || box.max !== "20" || box.work !== "—") throw new Error(`genesis bits field: ${JSON.stringify(box)}`);
+}
+const setBits = (ctx: string, v: string) => ev(ctx, `(() => { const i = document.getElementById("work-bits"); i.value = ${JSON.stringify(v)}; i.dispatchEvent(new Event("input")); })()`);
+await ev(A, `(() => { const t = document.getElementById("text"); t.value = "x"; t.dispatchEvent(new Event("input")); })()`);
+for (const bad of ["21", "-1", "1.5", ""]) {
+  await setBits(A, bad);
+  if (await ev(A, `document.getElementById("send").disabled`) !== true) throw new Error(`send enabled with ${JSON.stringify(bad)} zero bits`);
+}
+await setBits(A, String(WORK));
+if (await ev(A, `document.getElementById("send").disabled`) !== false) throw new Error(`send disabled with ${WORK} zero bits`);
+
 await send(A, "Hello from A");
 await until(B, `document.querySelectorAll(".msg").length === 1`, "B to see the 1st");
+// Depois do gênese, ninguém escolhe N de novo, e o cabeçalho mostra o N da sala
+for (const c of [A, B]) {
+  if (await ev(c, `document.getElementById("work-box").hidden`) !== true) throw new Error("the zero-bits field is still visible after the genesis");
+  if (await ev(c, `document.getElementById("work").textContent`) !== String(WORK)) throw new Error("the header does not show the room's zero bits");
+}
 await send(B, "<b>hi</b> from B");
 await until(A, `document.querySelectorAll(".msg").length === 2`, "A to see the 2nd");
 // XSS: o texto tem de aparecer literal, sem virar elemento
@@ -168,6 +191,11 @@ if (await ev(A, `document.querySelectorAll(".msg .text b").length`) !== 0) throw
 await Promise.all([send(A, "race A"), send(B, "race B")]);
 await until(A, `document.querySelectorAll(".msg").length === 4`, "A to see all 4", 8000);
 await until(B, `document.querySelectorAll(".msg").length === 4`, "B to see all 4", 8000);
+// Toda assinatura começa com WORK bits zero, e o info do gênese é WORK (o validator verify, no fim, confere de novo)
+const blocksJson = JSON.parse(await ev(A, `fetch("/chain.json").then(r => r.text())`));
+const zeroBits = (sigHex: string) => { let n = 0; for (const ch of sigHex) { const v = parseInt(ch, 16); if (v) return n + Math.clz32(v) - 28; n += 4; } return n; };
+if (blocksJson[0].info !== WORK || !blocksJson.every((b: { sig: string }) => zeroBits(b.sig) >= WORK)) throw new Error(`proof of work missing: ${JSON.stringify(blocksJson.map((b: { info: number; sig: string }) => [b.info, b.sig.slice(0, 4)]))}`);
+console.log("zero bits per block:", blocksJson.map((b: { sig: string }) => zeroBits(b.sig)).join(" "));
 const ta = await texts(A), tb = await texts(B);
 console.log("A:", ta); console.log("B:", tb);
 if (JSON.stringify(ta) !== JSON.stringify(tb)) throw new Error("A and B diverge");
@@ -514,6 +542,22 @@ for (const [what, edits, opts, code] of cases) {
   if (await msgCount() !== 4 || await ev(A, `document.getElementById("text").value`) !== "fraud test") throw new Error(`${what}: the chain or the text changed`);
   console.log(`fraud: ${what} -> ${r}`);
 }
+// Nonce digitado com "assinar automaticamente": a assinatura vai sem prova de trabalho. Procura um nonce cuja
+// assinatura (a que a caixa sig mostra) não começa com WORK bits zero. O stamp fica fixo na busca e no envio: se ele
+// acompanhasse o relógio, a assinatura enviada seria outra e teria os bits zero por acaso 1 vez em 2^WORK
+await resetFields();
+await typeMsg("fraud test");
+const lazyStamp = await field("stamp");
+await setField("stamp", lazyStamp);
+let lazy = "";
+for (let n = 1; n < 200 && !lazy; n++) {
+  await setField("nonce", String(n));
+  if (zeroBits(await field("sig")) < WORK) lazy = String(n);
+}
+if (!lazy) throw new Error("no nonce without work found");
+const noWork = await attempt({ stamp: lazyStamp, nonce: lazy });
+if (noWork !== "Rejected: INSUFFICIENT_WORK") throw new Error(`nonce without work: ${noWork}`);
+console.log(`fraud: nonce ${lazy} without proof of work -> ${noWork}`);
 // Carimbo no futuro (congelamento): +1 h sobre o valor que a caixa mostra
 await resetFields();
 const stampNow = BigInt(await field("stamp"));

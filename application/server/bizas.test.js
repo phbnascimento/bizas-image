@@ -3,8 +3,8 @@
 //   deno test --allow-read application/server/bizas.test.js
 import "./static/nacl-fast.min.js";
 import {
-  BLOCK_SIZE, DEFAULT_ROOM, decodeBlock, emptyBlock, encodeBlock, fingerprint, fromHex, hex,
-  nextBlock, signBlock, textOf, uploadString, verifyBlock,
+  BLOCK_SIZE, DEFAULT_ROOM, MAX_WORK_BITS, decodeBlock, emptyBlock, encodeBlock, fingerprint, fromHex, hasWork, hex,
+  leadingZeroBits, mineBlock, mineBlockSync, nextBlock, signBlock, textOf, uploadString, verifyBlock,
 } from "./static/bizas.js";
 
 const here = new URL(".", import.meta.url);
@@ -15,7 +15,7 @@ const V = Object.fromEntries(
     return [l.slice(0, i), l.slice(i + 1)];
   }),
 );
-for (const k of ["pub", "genesis", "block1", "fingerprint"]) {
+for (const k of ["pub", "genesis", "block1", "fingerprint", "nonces"]) {
   if (!V[k]) throw new Error(`test vector is missing key ${k}`);
 }
 
@@ -31,16 +31,25 @@ function testKey() {
   return globalThis.nacl.sign.keyPair.fromSeed(seed);
 }
 
-// A mesma cadeia que testChain monta em application/bizas/bizas_test.go
+// testWorkBits do block_test.go: o N do gênese do vetor
+const TEST_WORK_BITS = 8;
+
+// A mesma cadeia que testChain monta em application/bizas/block_test.go, com os dois blocos minerados a partir do nonce
+// inicial, de um em um: o JS tem de chegar aos mesmos nonces que o Go
+let cachedChain = null;
 function testChain() {
+  return cachedChain ??= buildTestChain();
+}
+function buildTestChain() {
   const kp = testKey();
   const g = emptyBlock();
   g.room = DEFAULT_ROOM.slice();
   g.stamp = 1_763_490_000_123_456_789n;
   g.nonce = 0x0102030405060708n;
-  g.info = 0xA1B2C3D4;
+  g.info = TEST_WORK_BITS;
+  g.author = kp.publicKey.slice();
   uploadString(g, "genesis");
-  const gBytes = signBlock(g, kp.secretKey);
+  const gBytes = mineBlockSync(g, kp.secretKey, TEST_WORK_BITS);
 
   const b = emptyBlock();
   b.room = g.room.slice();
@@ -48,8 +57,9 @@ function testChain() {
   b.stamp = 1_763_490_001_000_000_000n;
   b.nonce = 42n;
   b.info = 7;
+  b.author = kp.publicKey.slice();
   uploadString(b, TEST_TEXT);
-  const bBytes = signBlock(b, kp.secretKey);
+  const bBytes = mineBlockSync(b, kp.secretKey, TEST_WORK_BITS);
   return { kp, g, gBytes, b, bBytes };
 }
 
@@ -62,6 +72,37 @@ Deno.test("bytes and signatures match the vector", () => {
   assert(gBytes.length === BLOCK_SIZE, "size");
   assert(hex(gBytes) === V.genesis, `genesis differs:\n js     ${hex(gBytes)}\n vector ${V.genesis}`);
   assert(hex(bBytes) === V.block1, `block1 differs:\n js     ${hex(bBytes)}\n vector ${V.block1}`);
+});
+
+Deno.test("mining reaches the same nonces as Go, and the work is there", () => {
+  const { g, b } = testChain();
+  assert(`${g.nonce},${b.nonce}` === V.nonces, `nonces: js ${g.nonce},${b.nonce}, vector ${V.nonces}`);
+  assert(hasWork(g, TEST_WORK_BITS) && hasWork(b, TEST_WORK_BITS), "mined signatures lack the work");
+  assert(leadingZeroBits(Uint8Array.of(0, 0, 0x10, 0xff)) === Number(V.clz), "leadingZeroBits differs from Go");
+  assert(leadingZeroBits(new Uint8Array(4)) === 32 && leadingZeroBits(Uint8Array.of(0x80)) === 0, "edges");
+  assert(MAX_WORK_BITS === 20, "MAX_WORK_BITS differs from MaxWorkBits in Go");
+});
+
+Deno.test("async mining: same result as the sync one, reports progress, can be cancelled", async () => {
+  const kp = testKey();
+  const make = () => {
+    const x = nextBlock(null, 1_000n);
+    x.nonce = 7n;
+    x.info = 6;
+    x.author = kp.publicKey.slice();
+    uploadString(x, "async");
+    return x;
+  };
+  const a = make(), s = make();
+  let reported = 0;
+  const bytes = await mineBlock(a, kp.secretKey, 6, { onProgress: (n) => { reported = n; }, sliceMs: 1 });
+  mineBlockSync(s, kp.secretKey, 6);
+  assert(a.nonce === s.nonce && hex(bytes) === hex(encodeBlock(s)), "async and sync mining differ");
+  assert(reported === Number(a.nonce - 7n) + 1, `progress: ${reported} tries for nonce ${a.nonce}`);
+  assert(verifyBlock(a), "mined block does not verify");
+  // Cancelado logo depois da primeira fatia: devolve null (16 bits levam muitas fatias de 1 ms)
+  const c = make();
+  assert(await mineBlock(c, kp.secretKey, 16, { isCancelled: () => true, sliceMs: 1 }) === null, "not cancelled");
 });
 
 Deno.test("fingerprint matches the vector (same as Go)", () => {

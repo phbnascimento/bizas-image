@@ -24,8 +24,8 @@ Cada mensagem é um bloco de **512 bytes**, com inteiros em little-endian:
 |-------:|------:|----------|---------------------------------------------------------------------------------------------------------|
 | 0      | 8     | `room`   | nome da sala, completado com zeros (padrão: `Bizas`)                                                    |
 | 8      | 8     | `stamp`  | `int64`, nanossegundos desde 1970-01-01 UTC, no relógio do validator (seção 3)                          |
-| 16     | 8     | `nonce`  | `uint64` aleatório                                                                                      |
-| 24     | 4     | `info`   | `uint32`, livre (hoje 0)                                                                                |
+| 16     | 8     | `nonce`  | `uint64`, variado pela prova de trabalho até a assinatura ter os bits zero exigidos                     |
+| 24     | 4     | `info`   | `uint32`; no gênese, o N da prova de trabalho (0 a 20); nos outros blocos, livre (0)                    |
 | 28     | 2     | `type`   | `uint16`: 0 `TEXT`, 1 `MONO`, 2 `MONO_RLE`, 3 `COLORED`, 4 `COLORED_RLE`, 5 `NETWORK_ACTION`, 6 `OTHER` |
 | 30     | 2     | `length` | `int16`, bytes usados de `data` (0 a 320)                                                               |
 | 32     | 32    | `author` | chave pública Ed25519 de quem assinou                                                                   |
@@ -40,6 +40,20 @@ Cada mensagem é um bloco de **512 bytes**, com inteiros em little-endian:
   bloco antigo quebra o encadeamento de todos os seguintes.
 - **Limite do texto:** são 320 **bytes** UTF-8, não 320 caracteres. "Olá" tem 3 caracteres e 4 bytes.
 
+### Prova de trabalho
+
+Quem cria o gênese escolhe **N**, a quantidade de bits zero que toda assinatura da cadeia precisa ter no começo, e o
+grava no `info` do gênese. A página sugere 10, e o máximo é 20 (`MaxWorkBits`). Os bits contam do mais alto do
+primeiro byte da `sig` em diante: com N = 10, o primeiro byte é `00` e o segundo fica abaixo de `40`.
+
+A regra vale para todos os blocos, inclusive o gênese. Como a assinatura Ed25519 é determinística, o único jeito de
+mudá-la sem mudar a mensagem é o `nonce`: quem envia assina, confere os bits e, se faltarem, soma 1 ao `nonce` e
+assina de novo. Cada bit a mais dobra o número médio de tentativas: com N = 10, são em média 1024 assinaturas por
+mensagem. A página faz essa busca no próprio navegador, num único núcleo, em fatias curtas para a tela continuar
+respondendo, e mostra o número de tentativas abaixo da barra de mensagem.
+
+Com N = 0, nenhum bit é exigido. Uma cadeia cujo gênese tem `info` 0 não precisa de prova de trabalho.
+
 ### Regras de validade
 
 Um bloco isolado é válido quando:
@@ -47,14 +61,16 @@ Um bloco isolado é válido quando:
 - a assinatura confere com `author`.
 
 Um bloco novo entra na cadeia quando, além disso:
-- **com a cadeia vazia (gênese):** `prev` é todo zero. Quem envia o primeiro bloco define a sala.
+- **com a cadeia vazia (gênese):** `prev` é todo zero, e `info` (o N) vai de 0 a 20. Quem envia o primeiro bloco
+  define a sala e o N.
 - **com a cadeia não vazia:** comparado com a cabeça (último bloco aceito),
   - `room` é igual;
   - `stamp` é maior ou igual;
   - `prev` é igual à `sig` da cabeça.
+- **em qualquer caso:** a `sig` começa com N bits zero, sendo N o `info` do gênese;
 - **em qualquer caso:** `stamp` não está mais de 5 s à frente do relógio do validator (seção 3).
 
-As quatro primeiras regras são de **validade**: valem para qualquer cadeia e são o que o
+As regras acima, menos a última, são de **validade**: valem para qualquer cadeia e são o que o
 `validator verify` confere. A última é uma regra de **aceitação** do validator, que só vale na hora de
 receber um bloco novo, porque depende do relógio dele naquele instante.
 
@@ -68,6 +84,8 @@ Os nomes de erro vêm de `bizas.ValidationError`:
 | `NO_TIMESTAMP_CONTINUITY` | `stamp` menor que o da cabeça                                                            |
 | `NO_HASH_CONTINUITY`      | `prev` diferente da `sig` da cabeça, ou uma gênese com `prev` não zerado                 |
 | `TIMESTAMP_IN_FUTURE`     | `stamp` mais de 5 s à frente do relógio do validator (só na aceitação)                   |
+| `INSUFFICIENT_WORK`       | a `sig` não começa com os N bits zero que o gênese pede                                  |
+| `INVALID_WORK_BITS`       | o gênese pede mais que 20 bits zero no `info`                                            |
 | `CORRUPTED_TIMESTAMP`     | existe no código, mas hoje nunca ocorre: todo `int64` em nanossegundos é uma data válida |
 
 ## 2. Rotas públicas do server (porta 5000; 80 no host)
@@ -150,7 +168,7 @@ O server recusa a conexão quando o `Origin` é diferente do `Host`; esse é o p
 Dois aparelhos que assinam sobre a mesma cabeça disputam a vez: o validator aceita o primeiro e recusa
 o segundo com `NO_HASH_CONTINUITY` e a cabeça nova. O navegador recusado então:
 1. encaixa a cabeça recebida na sua cópia local;
-2. refaz o bloco sobre ela, assina de novo e reenvia, até 3 tentativas;
+2. refaz o bloco sobre ela, faz a prova de trabalho de novo e reenvia, até 3 tentativas;
 3. se a cabeça recebida não encaixa na cópia local, reconecta, recebe o histórico inteiro e reenvia a
    mensagem pendente que não estiver nele.
 
@@ -193,8 +211,11 @@ Como o `stamp` pode não ser hora de calendário, a página escolhe o que mostra
 O texto é atualizado a cada 15 s. Os carimbos assinados nunca mudam: o `set-date` só muda a exibição.
 ### Conferência no navegador
 
-O navegador confere de novo a assinatura de cada bloco que recebe. Assim não precisa confiar no server
-para isso.
+O navegador confere de novo a assinatura e a prova de trabalho de cada bloco que recebe. Assim não precisa
+confiar no server para isso.
+
+Se a cabeça mudar enquanto a prova de trabalho roda (outro aparelho encadeou antes), a página abandona a busca e
+recomeça sobre a cabeça nova, sem gastar uma das 3 tentativas.
 
 ## 4. API interna do validator (porta 8081, sem porta no host)
 
@@ -296,7 +317,9 @@ Mais dois pontos:
 - **Teste de fraude na página:** opção das configurações que expõe os campos do bloco (menos o `data`) para edição
   manual e mostra o código de recusa do validator. O teste no navegador monta blocos editados e confere, contra o
   validator de verdade, `NO_TIMESTAMP_CONTINUITY`, `INVALID_ROOM`, `NO_HASH_CONTINUITY`, `INVALID_LENGTH` (acima do
-  limite e negativo), `FRAUD` (sem assinar de novo, `sig` digitada, `author` trocado) e `TIMESTAMP_IN_FUTURE`.
+  limite e negativo), `FRAUD` (sem assinar de novo, `sig` digitada, `author` trocado), `INSUFFICIENT_WORK` (`nonce`
+  digitado, cuja assinatura não tem os bits zero) e `TIMESTAMP_IN_FUTURE`. Com "assinar automaticamente", o envio
+  faz a prova de trabalho variando o `nonce`; um `nonce` ou uma `sig` digitados vão como estão.
   `CORRUPTED_TIMESTAMP` não é alcançável: todo `int64` é um carimbo válido (`IsTimestampValid`).
   Os modos de edição do `room` (texto ou hexadecimal) e do `stamp` (nanossegundos ou data UTC) e o congelamento do
   `stamp` também passam por esse teste, e o `fraud.js` tem testes próprios (`bizas.test.js`) para a conversão sem

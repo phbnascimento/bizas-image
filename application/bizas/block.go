@@ -27,6 +27,9 @@ import (
 const (
 	MaxDataLength = 320
 	BlockSize     = 512
+	// MaxWorkBits é o maior N que um gênese pode pedir no info. Cada bit a mais dobra o número médio de assinaturas
+	// que cada mensagem custa; um N alto demais deixaria a sala inutilizável para todos
+	MaxWorkBits = 20
 
 	offRoom   = 0
 	offStamp  = 8
@@ -109,10 +112,14 @@ const (
 	NoHashContinuity
 	// TimestampInFuture é regra do validator (relógio da placa), não do bloco isolado: Verify e ChainVerify não a usam
 	TimestampInFuture
+	// InsufficientWork: a assinatura não começa com os N bits zero que o gênese pede
+	InsufficientWork
+	// InvalidWorkBits: o gênese pede mais que MaxWorkBits bits zero
+	InvalidWorkBits
 )
 
-var validationErrorNames = [...]string{"NONE", "FRAUD", "CORRUPTED_TIMESTAMP", "INVALID_ROOM", "INVALID_LENGTH", "NO_TIMESTAMP_CONTINUITY", "NO_HASH_CONTINUITY",
-	"TIMESTAMP_IN_FUTURE"}
+var validationErrorNames = [...]string{"NONE", "FRAUD", "CORRUPTED_TIMESTAMP", "INVALID_ROOM", "INVALID_LENGTH",
+	"NO_TIMESTAMP_CONTINUITY", "NO_HASH_CONTINUITY", "TIMESTAMP_IN_FUTURE", "INSUFFICIENT_WORK", "INVALID_WORK_BITS"}
 
 func (e ValidationError) String() string {
 	if e >= 0 && int(e) < len(validationErrorNames) {
@@ -206,6 +213,23 @@ func (b *Block) Sign(key PrivateKey) {
 	copy(b.Sig[:], ed25519.Sign(key, b.MarshalBinary()))
 }
 
+// HasWork diz se a assinatura começa com pelo menos workBits bits zero (do bit mais alto do primeiro byte em diante)
+func (b *Block) HasWork(workBits uint32) bool {
+	return uint32(CountLeadingZeroBits(b.Sig[:])) >= workBits
+}
+
+// Mine assina o bloco variando o nonce, a partir do valor atual e de um em um, até a assinatura começar com workBits
+// bits zero. A assinatura Ed25519 é determinística: o nonce é o único campo que muda a cada tentativa
+func (b *Block) Mine(key PrivateKey, workBits uint32) {
+	for {
+		b.Sign(key)
+		if b.HasWork(workBits) {
+			return
+		}
+		b.Nonce++
+	}
+}
+
 // SplitSignature devolve uma cópia do bloco com Sig zerado e a assinatura
 func (b Block) SplitSignature() (unsigned Block, sig Signature) {
 	unsigned = b
@@ -229,7 +253,8 @@ func (b Block) Verify() ValidationError {
 	return None
 }
 
-// ChainVerify confere cada bloco e o encadeamento com o anterior. Devolve o primeiro erro e o índice do bloco, ou
+// ChainVerify confere cada bloco e o encadeamento com o anterior. O info do gênese é o N da cadeia: a assinatura de
+// todo bloco, inclusive a do gênese, tem de começar com N bits zero. Devolve o primeiro erro e o índice do bloco, ou
 // (None, -1)
 func ChainVerify(chain []Block) (ValidationError, int) {
 	for i := range chain {
@@ -238,20 +263,45 @@ func ChainVerify(chain []Block) (ValidationError, int) {
 			return err, i
 		}
 		if i == 0 {
+			if err := VerifyGenesisWork(block); err != None {
+				return err, i
+			}
 			continue
 		}
-		last := &chain[i-1]
-		if block.Room != last.Room {
-			return InvalidRoom, i
-		}
-		if block.Stamp < last.Stamp {
-			return NoTimestampContinuity, i
-		}
-		if block.Prev != last.Sig {
-			return NoHashContinuity, i
+		if err := VerifyLink(&chain[i-1], block, chain[0].Info); err != None {
+			return err, i
 		}
 	}
 	return None, -1
+}
+
+// VerifyGenesisWork confere o N que o gênese pede no info (até MaxWorkBits) e a assinatura dele contra esse N
+func VerifyGenesisWork(genesis *Block) ValidationError {
+	if genesis.Info > MaxWorkBits {
+		return InvalidWorkBits
+	}
+	if !genesis.HasWork(genesis.Info) {
+		return InsufficientWork
+	}
+	return None
+}
+
+// VerifyLink confere um bloco contra o anterior numa cadeia que pede workBits bits zero: sala, carimbo, prev e
+// trabalho. O bloco já tem de ter passado por Verify
+func VerifyLink(last, block *Block, workBits uint32) ValidationError {
+	if block.Room != last.Room {
+		return InvalidRoom
+	}
+	if block.Stamp < last.Stamp {
+		return NoTimestampContinuity
+	}
+	if block.Prev != last.Sig {
+		return NoHashContinuity
+	}
+	if !block.HasWork(workBits) {
+		return InsufficientWork
+	}
+	return None
 }
 
 // UploadString grava um texto em Data com tipo Text

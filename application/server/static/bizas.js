@@ -6,6 +6,11 @@ export const MAX_DATA_LENGTH = 320;
 // Bytes da assinatura da cabeça que entram na impressão digital (FingerprintSize no Go)
 export const FINGERPRINT_SIZE = 8;
 export const DEFAULT_ROOM = Uint8Array.of(66, 105, 122, 97, 115, 0, 0, 0); // "Bizas"
+// Prova de trabalho: o info do gênese é o N da cadeia, e toda assinatura começa com N bits zero (MaxWorkBits no Go)
+export const MAX_WORK_BITS = 20;
+// N que a página sugere a quem cria o gênese
+export const DEFAULT_WORK_BITS = 10;
+const U64 = (1n << 64n) - 1n;
 
 export const DataType = Object.freeze({
   TEXT: 0, MONO: 1, MONO_RLE: 2, COLORED: 3, COLORED_RLE: 4, NETWORK_ACTION: 5, OTHER: 6,
@@ -117,6 +122,56 @@ export function nextBlock(head, nowNs = BigInt(Date.now()) * 1_000_000n) {
   const n = nacl().randomBytes(8);
   b.nonce = new DataView(n.buffer).getBigUint64(0, true);
   return b;
+}
+
+// Bits zero à esquerda, do bit mais alto do primeiro byte em diante (CountLeadingZeroBits no Go)
+export function leadingZeroBits(bytes) {
+  let n = 0;
+  for (const x of bytes) {
+    if (x !== 0) return n + Math.clz32(x) - 24;
+    n += 8;
+  }
+  return n;
+}
+
+export const hasWork = (b, workBits) => leadingZeroBits(b.sig) >= workBits;
+
+// Assina o bloco com o author que ele já tem (sem trocá-lo pela chave que assina) e devolve os bytes
+function signKeepingAuthor(b, secretKey) {
+  b.sig = new Uint8Array(64);
+  b.sig = nacl().sign.detached(encodeBlock(b), secretKey);
+  return encodeBlock(b);
+}
+
+// Minera como o Mine do Go: assina variando o nonce, a partir do valor atual e de um em um, até a assinatura começar
+// com workBits bits zero. Não troca o author. Devolve os bytes
+export function mineBlockSync(b, secretKey, workBits) {
+  for (;;) {
+    const bytes = signKeepingAuthor(b, secretKey);
+    if (hasWork(b, workBits)) return bytes;
+    b.nonce = (b.nonce + 1n) & U64;
+  }
+}
+
+// A mesma mineração, em fatias de sliceMs com uma pausa entre elas, para a página continuar respondendo. onProgress
+// recebe o número de tentativas; se isCancelled() ficar verdadeiro entre duas fatias, devolve null
+export async function mineBlock(b, secretKey, workBits, { onProgress, isCancelled, sliceMs = 30 } = {}) {
+  let tries = 0;
+  for (;;) {
+    const t0 = Date.now();
+    while (Date.now() - t0 < sliceMs) {
+      const bytes = signKeepingAuthor(b, secretKey);
+      tries++;
+      if (hasWork(b, workBits)) {
+        onProgress?.(tries);
+        return bytes;
+      }
+      b.nonce = (b.nonce + 1n) & U64;
+    }
+    onProgress?.(tries);
+    await new Promise((r) => setTimeout(r, 0));
+    if (isCancelled?.()) return null;
+  }
 }
 
 export function equalBytes(a, b) {

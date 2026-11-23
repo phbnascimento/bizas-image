@@ -63,7 +63,12 @@ func testKey(t *testing.T) PrivateKey {
 // Texto com caractere de vários bytes em UTF-8, para o limite em bytes ser exercitado
 const testText = "Hello, Bizas! ✓"
 
-// testChain monta a cadeia do vetor; bizas.test.js monta a mesma
+// testWorkBits é o N do gênese do vetor: pequeno para o teste ser rápido, grande o bastante para a mineração precisar
+// de várias tentativas (o JS tem de chegar ao mesmo nonce)
+const testWorkBits = 8
+
+// testChain monta a cadeia do vetor; bizas.test.js monta a mesma. Os dois blocos são minerados a partir do nonce
+// inicial, de um em um, até a assinatura começar com testWorkBits bits zero
 func testChain(t *testing.T) []Block {
 	t.Helper()
 	key := testKey(t)
@@ -72,11 +77,11 @@ func testChain(t *testing.T) []Block {
 	genesis.Room = DefaultRoomName
 	genesis.Stamp = 1_763_490_000_123_456_789
 	genesis.Nonce = 0x0102030405060708
-	genesis.Info = 0xA1B2C3D4
+	genesis.Info = testWorkBits
 	if err := genesis.UploadString("genesis"); err != nil {
 		t.Fatal(err)
 	}
-	genesis.Sign(key)
+	genesis.Mine(key, testWorkBits)
 
 	b := NextBlock([]Block{genesis})
 	b.Stamp = 1_763_490_001_000_000_000
@@ -85,7 +90,7 @@ func testChain(t *testing.T) []Block {
 	if err := b.UploadString(testText); err != nil {
 		t.Fatal(err)
 	}
-	b.Sign(key)
+	b.Mine(key, testWorkBits)
 	return []Block{genesis, b}
 }
 
@@ -99,6 +104,7 @@ func vectorFor(t *testing.T) string {
 	fmt.Fprintf(&sb, "genesis=%s\n", hex.EncodeToString(chain[0].MarshalBinary()))
 	fmt.Fprintf(&sb, "block1=%s\n", hex.EncodeToString(chain[1].MarshalBinary()))
 	fmt.Fprintf(&sb, "verify=%v,%d\n", verr, idx)
+	fmt.Fprintf(&sb, "nonces=%d,%d\n", chain[0].Nonce, chain[1].Nonce)
 	fmt.Fprintf(&sb, "clz=%d\n", CountLeadingZeroBits([]byte{0, 0, 0x10, 0xff}))
 	fp, err := Fingerprint(chain, len(chain))
 	if err != nil {

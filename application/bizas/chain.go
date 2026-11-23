@@ -216,11 +216,18 @@ func (c *Chain) Append(b Block) (ValidationError, *Block, error) {
 		if err := b.Verify(); err != None {
 			return err, nil, nil
 		}
+		if err := VerifyGenesisWork(&b); err != None {
+			return err, nil, nil
+		}
 	} else {
 		h := c.blocks[len(c.blocks)-1]
 		head = &h
-		// O mesmo código testado contra o vetor de teste confere sala, carimbo, prev e assinatura
-		if err, _ := ChainVerify([]Block{h, b}); err != None {
+		// As mesmas regras do ChainVerify, testado contra o vetor: assinatura, sala, carimbo, prev e o trabalho que o
+		// gênese pede
+		if err := b.Verify(); err != None {
+			return err, head, nil
+		}
+		if err := VerifyLink(&h, &b, c.blocks[0].Info); err != None {
 			return err, head, nil
 		}
 	}
