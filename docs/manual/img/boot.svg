@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 640" width="900" height="640" role="img" aria-labelledby="t d">
+  <title id="t">Fluxo de inicialização do Bizas</title>
+  <desc id="d">O firmware da GPU lê config.txt e carrega o kernel com o cmdline.txt. O kernel monta o rootfs e inicia o init do BusyBox, que monta os sistemas de arquivos e roda o rcS. O rcS roda os scripts de /etc/init.d em ordem; o S60dockerd inicia o dockerd e o S99bizas confere a marca de provisionamento. Sem a marca (1º boot), ele espera o dockerd, roda o provision.sh (docker load, rede, volume, containers) e grava a marca. Com a marca, não faz nada. Nos dois casos, o dockerd liga os containers, e a aplicação está disponível quando o /health do server responde 200, o que exige o validator respondendo.</desc>
+  <style>
+    .box { fill: #f6f8fa; stroke: #8c959f; stroke-width: 1.2; }
+    .first { fill: #fff8c5; stroke: #8c959f; stroke-width: 1.2; }
+    .next { fill: #dafbe1; stroke: #8c959f; stroke-width: 1.2; }
+    .done { fill: #ddf4ff; stroke: #8c959f; stroke-width: 1.2; }
+    .t { fill: #1f2328; font: 600 14px system-ui, -apple-system, "Segoe UI", sans-serif; }
+    .k { fill: #57606a; font: 12px system-ui, -apple-system, "Segoe UI", sans-serif; }
+    .v { fill: #1f2328; font: 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .link { stroke: #57606a; stroke-width: 1.6; fill: none; }
+    .head { fill: #57606a; }
+    @media (prefers-color-scheme: dark) {
+      .box { fill: #161b22; stroke: #6e7681; }
+      .first { fill: #2e2a12; stroke: #6e7681; }
+      .next { fill: #12261e; stroke: #6e7681; }
+      .done { fill: #0c2d4a; stroke: #6e7681; }
+      .t, .v { fill: #e6edf3; }
+      .k { fill: #8d96a0; }
+      .link { stroke: #8d96a0; }
+      .head { fill: #8d96a0; }
+    }
+  </style>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path class="head" d="M0 0 L10 5 L0 10 z"/>
+    </marker>
+  </defs>
+
+  <rect class="box" x="200" y="10" width="500" height="56" rx="8"/>
+  <text class="t" x="216" y="32">1. Firmware da GPU</text>
+  <text class="v" x="216" y="52">start4.elf + fixup4.dat, config.txt, carrega Image e o .dtb</text>
+  <path class="link" d="M450 66 L450 84" marker-end="url(#a)"/>
+
+  <rect class="box" x="200" y="86" width="500" height="56" rx="8"/>
+  <text class="t" x="216" y="108">2. Kernel Linux 6.12.61</text>
+  <text class="v" x="216" y="128">cmdline: root=/dev/mmcblk0p2 rootwait … quiet loglevel=3</text>
+  <path class="link" d="M450 142 L450 160" marker-end="url(#a)"/>
+
+  <rect class="box" x="200" y="162" width="500" height="56" rx="8"/>
+  <text class="t" x="216" y="184">3. init do BusyBox (/etc/inittab, sysinit)</text>
+  <text class="v" x="216" y="204">mount /proc, remount rw /, mount -a, hostname, rcS</text>
+  <path class="link" d="M450 218 L450 236" marker-end="url(#a)"/>
+
+  <rect class="box" x="200" y="238" width="500" height="92" rx="8"/>
+  <text class="t" x="216" y="260">4. /etc/init.d/rcS: scripts Sxx em ordem, um por vez</text>
+  <text class="v" x="216" y="280">S01seedrng S01syslogd S02klogd S02sysctl S11modules</text>
+  <text class="v" x="216" y="298">S30cgroupfs2 S35iptables S40network S50crond</text>
+  <text class="v" x="216" y="316">S60dockerd (inicia o dockerd)  S99bizas</text>
+  <path class="link" d="M450 330 L450 348" marker-end="url(#a)"/>
+
+  <rect class="box" x="250" y="350" width="400" height="44" rx="8"/>
+  <text class="t" x="266" y="377">5. S99bizas: existe /var/lib/bizas/provisioned?</text>
+  <path class="link" d="M350 394 L230 430" marker-end="url(#a)"/>
+  <path class="link" d="M550 394 L670 430" marker-end="url(#a)"/>
+  <text class="k" x="168" y="414">não (1º boot)</text>
+  <text class="k" x="640" y="414">sim</text>
+
+  <rect class="first" x="20" y="432" width="420" height="126" rx="8"/>
+  <text class="t" x="36" y="454">Provisionamento (só no 1º boot)</text>
+  <text class="k" x="36" y="474">aviso no console serial; espera o dockerd responder</text>
+  <text class="v" x="36" y="494">provision.sh: docker load dos dois tars,</text>
+  <text class="v" x="36" y="512">rede bizas-net, volume bizas-data,</text>
+  <text class="v" x="36" y="530">docker create … --restart unless-stopped, start</text>
+  <text class="k" x="36" y="550">os dois rodando → grava a marca e faz sync</text>
+
+  <rect class="next" x="460" y="432" width="420" height="126" rx="8"/>
+  <text class="t" x="476" y="454">Boots seguintes</text>
+  <text class="k" x="476" y="474">o S99bizas não executa nenhum comando docker</text>
+  <text class="k" x="476" y="494">o dockerd religa sozinho os containers que tinham</text>
+  <text class="k" x="476" y="512">--restart unless-stopped e não foram parados</text>
+  <text class="k" x="476" y="530">manualmente</text>
+
+  <path class="link" d="M230 558 L360 590" marker-end="url(#a)"/>
+  <path class="link" d="M670 558 L540 590" marker-end="url(#a)"/>
+  <rect class="done" x="200" y="592" width="500" height="44" rx="8"/>
+  <text class="t" x="216" y="612">6. Aplicação disponível: GET /health do server = 200</text>
+  <text class="k" x="216" y="628">o server só responde 200 quando o validator também responde</text>
+</svg>

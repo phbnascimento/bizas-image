@@ -1,0 +1,128 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 700" width="960" height="700" role="img" aria-labelledby="t d">
+  <title id="t">Arquitetura do Bizas na Raspberry Pi 4</title>
+  <desc id="d">O cartão microSD tem a partição de boot (firmware, config.txt, cmdline.txt, kernel e device tree) e o rootfs ext4. O kernel Linux sobe o init do BusyBox, que roda o S60dockerd e o S99bizas. O dockerd roda dois containers na rede bizas-net: o bizas-server, com a porta 80 do host publicada para a 5000 e a porta de manutenção 127.0.0.1:5001 só dentro do container, e o bizas-validator, com a porta 8081 só na rede bizas-net e o volume bizas-data montado em /data. Os navegadores da rede local chegam pela eth0 na porta 80. O console (HDMI ou serial) usa os comandos set-date e set-auto-date, que fazem docker exec no server.</desc>
+  <style>
+    .host { fill: #f6f8fa; stroke: #8c959f; stroke-width: 1.4; }
+    .box { fill: #ffffff; stroke: #8c959f; stroke-width: 1.2; }
+    .ctr { fill: #dafbe1; stroke: #8c959f; stroke-width: 1.2; }
+    .vol { fill: #fff8c5; stroke: #8c959f; stroke-width: 1.2; }
+    .net { fill: none; stroke: #1a7f37; stroke-width: 1.4; stroke-dasharray: 6 4; }
+    .ext { fill: #ddf4ff; stroke: #8c959f; stroke-width: 1.2; }
+    .t { fill: #1f2328; font: 600 15px system-ui, -apple-system, "Segoe UI", sans-serif; }
+    .s { fill: #1f2328; font: 600 13px system-ui, -apple-system, "Segoe UI", sans-serif; }
+    .k { fill: #57606a; font: 12px system-ui, -apple-system, "Segoe UI", sans-serif; }
+    .v { fill: #1f2328; font: 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .nett { fill: #1a7f37; font: 600 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .link { stroke: #57606a; stroke-width: 1.6; fill: none; }
+    .head { fill: #57606a; }
+    .hot { stroke: #8250df; stroke-width: 2; fill: none; }
+    .hothead { fill: #8250df; }
+    .hott { fill: #8250df; font: 600 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    @media (prefers-color-scheme: dark) {
+      .host { fill: #161b22; stroke: #6e7681; }
+      .box { fill: #0d1117; stroke: #6e7681; }
+      .ctr { fill: #12261e; stroke: #6e7681; }
+      .vol { fill: #2e2a12; stroke: #6e7681; }
+      .ext { fill: #0c2d4a; stroke: #6e7681; }
+      .net { stroke: #3fb950; }
+      .t, .s, .v { fill: #e6edf3; }
+      .k { fill: #8d96a0; }
+      .nett { fill: #3fb950; }
+      .link { stroke: #8d96a0; }
+      .head { fill: #8d96a0; }
+      .hot { stroke: #a371f7; }
+      .hothead { fill: #a371f7; }
+      .hott { fill: #a371f7; }
+    }
+  </style>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path class="head" d="M0 0 L10 5 L0 10 z"/>
+    </marker>
+    <marker id="h" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path class="hothead" d="M0 0 L10 5 L0 10 z"/>
+    </marker>
+  </defs>
+
+  <!-- Host -->
+  <rect class="host" x="10" y="10" width="700" height="680" rx="10"/>
+  <text class="t" x="26" y="36">Raspberry Pi 4 · host Buildroot 2026.05.1 (aarch64)</text>
+
+  <!-- microSD -->
+  <rect class="box" x="26" y="50" width="668" height="118" rx="8"/>
+  <text class="s" x="40" y="72">microSD (sdcard.img)</text>
+  <rect class="vol" x="40" y="82" width="300" height="76" rx="6"/>
+  <text class="s" x="52" y="100">boot · vfat 32M (mmcblk0p1)</text>
+  <text class="v" x="52" y="118">start4.elf fixup4.dat config.txt</text>
+  <text class="v" x="52" y="134">cmdline.txt Image</text>
+  <text class="v" x="52" y="150">bcm2711-rpi-4-b.dtb</text>
+  <rect class="vol" x="352" y="82" width="330" height="76" rx="6"/>
+  <text class="s" x="364" y="100">rootfs · ext4 1024M (mmcblk0p2)</text>
+  <text class="v" x="364" y="118">/opt/bizas  (tars e provision.sh)</text>
+  <text class="v" x="364" y="134">/var/lib/docker  (imagens, volume)</text>
+  <text class="v" x="364" y="150">/var/lib/bizas/provisioned</text>
+
+  <!-- Kernel -->
+  <rect class="box" x="26" y="182" width="668" height="56" rx="8"/>
+  <text class="s" x="40" y="204">kernel Linux 6.12.61 (raspberrypi/linux, bcm2711_defconfig + docker.fragment)</text>
+  <text class="v" x="40" y="224">namespaces · cgroup v2 · seccomp · veth/bridge · netfilter/NAT · overlayfs · devtmpfs</text>
+
+  <!-- Init -->
+  <rect class="box" x="26" y="252" width="668" height="56" rx="8"/>
+  <text class="s" x="40" y="274">init do BusyBox → /etc/init.d/rcS (scripts Sxx em ordem)</text>
+  <text class="v" x="40" y="294">… S30cgroupfs2 · S40network (eth0, DHCP) · S60dockerd · S99bizas</text>
+
+  <!-- Docker -->
+  <rect class="box" x="26" y="322" width="668" height="356" rx="8"/>
+  <text class="s" x="40" y="344">dockerd · containerd · runc</text>
+  <rect class="net" x="40" y="356" width="640" height="232" rx="8"/>
+  <text class="nett" x="54" y="376">rede bizas-net</text>
+
+  <text class="k" x="300" y="376">server → validator: POST /blocks, GET /chain</text>
+
+  <rect class="ctr" x="54" y="388" width="290" height="186" rx="8"/>
+  <text class="s" x="68" y="410">bizas-validator:0.2</text>
+  <text class="k" x="68" y="430">dono da cadeia: confere e grava</text>
+  <text class="v" x="68" y="452">:8081 (só na bizas-net,</text>
+  <text class="v" x="68" y="470">alias validator)</text>
+  <text class="k" x="68" y="494">nenhuma porta no host</text>
+  <text class="k" x="68" y="512">USER 65532 · rootfs somente leitura</text>
+  <text class="k" x="68" y="530">--cap-drop ALL · no-new-privileges</text>
+  <text class="k" x="68" y="548">--pids-limit 64 · unless-stopped</text>
+
+  <rect class="ctr" x="376" y="388" width="290" height="186" rx="8"/>
+  <text class="s" x="390" y="410">bizas-server:0.2</text>
+  <text class="k" x="390" y="430">página, WebSocket, repasse</text>
+  <text class="v" x="390" y="452">:5000 (publicada 80 → 5000)</text>
+  <text class="v" x="390" y="470">127.0.0.1:5001 (manutenção)</text>
+  <text class="k" x="390" y="494">sem volume</text>
+  <text class="k" x="390" y="512">USER 65532 · rootfs somente leitura</text>
+  <text class="k" x="390" y="530">--cap-drop ALL · no-new-privileges</text>
+  <text class="k" x="390" y="548">--pids-limit 64 · unless-stopped</text>
+
+  <path class="link" d="M374 460 L346 460" marker-end="url(#a)"/>
+
+  <rect class="vol" x="54" y="616" width="290" height="50" rx="6"/>
+  <text class="s" x="68" y="637">volume bizas-data → /data</text>
+  <text class="v" x="68" y="656">/data/chain.bin (blocos de 512 B)</text>
+  <path class="link" d="M199 574 L199 614" marker-end="url(#a)"/>
+
+  <!-- Externos -->
+  <rect class="ext" x="740" y="388" width="210" height="124" rx="8"/>
+  <text class="s" x="754" y="410">navegadores na rede local</text>
+  <text class="k" x="754" y="430">celular, notebook</text>
+  <text class="v" x="754" y="452">http://&lt;IP da placa&gt;/</text>
+  <text class="k" x="754" y="472">pela eth0, porta 80</text>
+  <text class="k" x="754" y="490">a chave privada fica no</text>
+  <text class="k" x="754" y="506">navegador e assina ali</text>
+  <path class="hot" d="M740 446 L668 446" marker-end="url(#h)"/>
+
+  <rect class="ext" x="740" y="560" width="210" height="118" rx="8"/>
+  <text class="s" x="754" y="582">console (HDMI ou serial)</text>
+  <text class="k" x="754" y="600">login root</text>
+  <text class="v" x="754" y="620">set-date</text>
+  <text class="v" x="754" y="636">set-auto-date</text>
+  <text class="k" x="754" y="656">docker exec bizas-server</text>
+  <text class="k" x="754" y="672">/app … → 127.0.0.1:5001</text>
+  <path class="link" d="M740 628 L521 628 L521 576" marker-end="url(#a)"/>
+</svg>

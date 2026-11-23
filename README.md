@@ -373,6 +373,8 @@ rede. Se o outro aparelho não conectar, é o firewall do PC bloqueando a porta.
 
 ## Documentação
 
+- [docs/manual/](docs/manual/README.md): manual técnico (arquitetura, build, Buildroot, kernel, licenças,
+  testes, gravação e recuperação); o PDF sai de `scripts/build-manual.sh`.
 - [docs/protocol.md](docs/protocol.md): formato do bloco, regras de validade, rotas, WebSocket e o que
   foi verificado.
 - [docs/containers.md](docs/containers.md): imagens, rede, portas, volume, privilégios e
