@@ -2,8 +2,9 @@
 
 Manual técnico da imagem Linux do Bizas para a Raspberry Pi 4: como ela é construída, configurada,
 testada, gravada e mantida. O PDF é gerado a partir destes arquivos por `scripts/build-manual.sh`
-([capítulo 8](08-manual-and-pdf.md)).
+([capítulo 11](11-manual-and-pdf.md)).
 
+0. [Visão geral](00-overview.md)
 1. [Arquitetura](01-architecture.md)
 2. [Ambiente de build](02-build-environment.md)
 3. [Configuração do Buildroot](03-buildroot.md)
@@ -11,7 +12,9 @@ testada, gravada e mantida. O PDF é gerado a partir destes arquivos por `script
 5. [Licenças e versões](05-licenses-and-versions.md)
 6. [Testes](06-tests.md)
 7. [Gravação, recuperação e diagnóstico](07-flashing-and-recovery.md)
-8. [Este manual e o PDF](08-manual-and-pdf.md)
+8. [Boot e init](08-boot-and-init.md)
+9. [Docker](09-docker.md)
+10. [Aplicação](10-application.md)
+11. [Este manual e o PDF](11-manual-and-pdf.md)
 
-O protocolo das mensagens está em [`docs/protocol.md`](../protocol.md), e os containers em
-[`docs/containers.md`](../containers.md).
+O protocolo das mensagens está em [`docs/protocol.md`](../protocol.md).

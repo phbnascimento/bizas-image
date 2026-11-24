@@ -70,7 +70,7 @@ Opções aplicadas aos dois containers:
 - healthcheck a cada 5 s, pelo próprio binário (`/app health`).
 
 Não há modo privilegiado, nem `docker.sock` montado, nem dispositivo repassado. Detalhes e
-justificativas em [docs/containers.md](docs/containers.md).
+justificativas em [docs/manual/09-docker.md](docs/manual/09-docker.md).
 
 ### A imagem Buildroot
 
@@ -476,9 +476,9 @@ rede. Se o outro aparelho não conectar, é o firewall do PC bloqueando a porta.
 
 ## Documentação
 
-- [docs/manual/](docs/manual/README.md): manual técnico (arquitetura, build, Buildroot, kernel, licenças,
-  testes, gravação e recuperação); o PDF sai de `scripts/build-manual.sh`.
+- [docs/manual/](docs/manual/README.md): manual técnico (visão geral, arquitetura, build, Buildroot, kernel,
+  licenças, testes, gravação e recuperação, boot e init, Docker e aplicação); o PDF sai de `scripts/build-manual.sh`.
 - [docs/protocol.md](docs/protocol.md): formato do bloco, regras de validade, rotas, WebSocket e o que
   foi verificado.
-- [docs/containers.md](docs/containers.md): imagens, rede, portas, volume, privilégios e
-  provisionamento.
+- [docs/manual/09-docker.md](docs/manual/09-docker.md): o Docker na imagem, as imagens dos containers, rede, portas,
+  volume, privilégios e provisionamento.

@@ -1,28 +1,45 @@
-# Containers do Bizas
+# 9. Docker
 
-São dois containers, cada um com um binário Go estático em `FROM scratch`:
+A aplicação roda em dois containers, cada um com um binário Go estático em `FROM scratch`:
 
 - **`bizas-validator`:** confere e guarda a cadeia.
 - **`bizas-server`:** serve a página, mantém o WebSocket e repassa cada bloco ao validator.
 
-O protocolo entre os dois está em [`protocol.md`](protocol.md).
+O protocolo entre os dois está em [`docs/protocol.md`](../protocol.md).
 
-| arquivo                                                                                                                    | papel                                                                                         |
-|----------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------|
-| [`docker/Dockerfile.validator`](../docker/Dockerfile.validator), [`docker/Dockerfile.server`](../docker/Dockerfile.server) | build das imagens (contexto: `application/`)                                                  |
-| [`docker/version.env`](../docker/version.env)                                                                              | versão das imagens, nomes da rede e do volume, `golang` fixado por digest                     |
-| [`docker/provision.sh`](../docker/provision.sh)                                                                            | `docker load`, criação da rede, do volume e dos containers (POSIX `sh`, para o init da placa) |
-| [`scripts/containers-build.sh`](../scripts/containers-build.sh)                                                            | build, `docker save`, conferência da arquitetura dentro do tar e SHA-256 em `evidence/`       |
-| [`scripts/containers-test.sh`](../scripts/containers-test.sh)                                                              | testa no PC tudo o que este documento afirma                                                  |
+## 9.1 O Docker na imagem
 
-## Por que dois containers
+O Docker Engine é compilado pelo Buildroot e iniciado pelo init, sem login (capítulo 8):
+
+| Peça                                        | Como entra na imagem                                                                                                           |
+|---------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------|
+| `dockerd`, `containerd`, `runc`, `iptables` | pacote `docker-engine` (`BR2_PACKAGE_DOCKER_ENGINE`), com o `S60dockerd` (capítulo 3)                                          |
+| comando `docker`                            | pacote `docker-cli` (`BR2_PACKAGE_DOCKER_CLI`), usado pelo `provision.sh` e pelos comandos de manutenção                       |
+| kernel                                      | o fragmento [`kernel-config/docker.fragment`](../../kernel-config/docker.fragment) (capítulo 4)                                |
+| cgroups                                     | cgroup v2, montado em `/sys/fs/cgroup` pelo `S30cgroupfs2`                                                                     |
+| storage driver                              | `overlay`, com `CONFIG_OVERLAY_FS` embutido no kernel (capítulo 4, seção 4.5); a imagem não traz `daemon.json`                 |
+| rede                                        | ponte e NAT do próprio Docker, sobre `veth`, `bridge` e netfilter do kernel; a rede dos containers é a `bizas-net` (seção 9.4) |
+| processo `init` do container                | nenhum (`BR2_PACKAGE_DOCKER_ENGINE_DOCKER_INIT_NONE`): cada container tem um único processo, o `/app`                          |
+
+As imagens dos containers vêm dentro do rootfs, em `/opt/bizas`, como tars gerados por `docker save`, e são carregadas no
+1º boot. Nada é baixado no boot.
+
+| arquivo                                                                                                                          | papel                                                                                         |
+|----------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------|
+| [`docker/Dockerfile.validator`](../../docker/Dockerfile.validator), [`docker/Dockerfile.server`](../../docker/Dockerfile.server) | build das imagens (contexto: `application/`)                                                  |
+| [`docker/version.env`](../../docker/version.env)                                                                                 | versão das imagens, nomes da rede e do volume, `golang` fixado por digest                     |
+| [`docker/provision.sh`](../../docker/provision.sh)                                                                               | `docker load`, criação da rede, do volume e dos containers (POSIX `sh`, para o init da placa) |
+| [`scripts/containers-build.sh`](../../scripts/containers-build.sh)                                                               | build, `docker save`, conferência da arquitetura dentro do tar e SHA-256 em `evidence/`       |
+| [`scripts/containers-test.sh`](../../scripts/containers-test.sh)                                                                 | testa no PC tudo o que este documento afirma                                                  |
+
+## 9.2 Por que dois containers
 
 A razão é o **privilégio mínimo**. O server é o único exposto na rede e não tem volume nenhum. Se ele
 for comprometido, não consegue reescrever a cadeia: só pode pedir ao validator que acrescente blocos,
 e o validator confere a assinatura de cada um. Já o validator, o único que grava, não tem porta
 publicada no host.
 
-## Imagens
+## 9.3 Imagens
 
 - **Tag fixa:** `bizas-validator:0.4a` e `bizas-server:0.4a`. Nunca `latest`. A versão fica só em
   `docker/version.env`.
@@ -34,18 +51,18 @@ publicada no host.
 - **Na placa:** as imagens chegam como tar (`docker save`) dentro da imagem do Buildroot e são
   carregadas no 1º boot. **Nada é baixado no boot.**
 
-Tamanhos medidos no build arm64 de 18/11/2026:
+Tamanhos do build arm64 da versão 0.4a:
 
 |           | tar         | binário `/app` |
 |-----------|------------:|---------------:|
-| validator | 2 837 504 B | 6 684 796 B    |
-| server    | 2 990 592 B | 7 078 012 B    |
+| validator | 2 851 328 B | 6 750 332 B    |
+| server    | 3 092 480 B | 7 340 156 B    |
 
 O tar é menor que o binário porque a camada vai comprimida. O SHA-256 de cada tar é gravado pelo
 `containers-build.sh` em `evidence/hashes-containers.txt`. O hash identifica o artefato, mas não
 prova reprodutibilidade.
 
-## Rede, portas e volume
+## 9.4 Rede, portas e volume
 
 |                    | validator                                              | server                                                                                                                         |
 |--------------------|--------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------|
@@ -74,9 +91,9 @@ prova reprodutibilidade.
   gravar.
 - **Persistência:** o volume guarda só a cadeia, em `/data/chain.bin`, com `fsync` a cada bloco. Ela
   sobrevive à recriação do container e a reboots, e um pedaço final incompleto (queda de energia no meio
-  da escrita) é descartado na partida. Detalhes em [protocol.md](protocol.md#persistência).
+  da escrita) é descartado na partida. Detalhes em [protocol.md](../protocol.md#persistência).
 
-## Privilégios
+## 9.5 Privilégios
 
 Opções aplicadas aos dois containers pelo `provision.sh`:
 
@@ -92,7 +109,7 @@ Opções aplicadas aos dois containers pelo `provision.sh`:
   não há nada a justificar nesse ponto.
 - **Única exceção ao somente leitura:** o volume do validator.
 
-## Reinicialização e saúde
+## 9.6 Reinicialização e saúde
 
 - **Reinicialização:** `--restart unless-stopped` nos dois.
 - **Saúde:** o `HEALTHCHECK` chama o próprio binário (`/app health`), porque `FROM scratch` não tem
@@ -103,7 +120,7 @@ Opções aplicadas aos dois containers pelo `provision.sh`:
   início. Enquanto o validator não responde, o `/health` dá 503 e o WebSocket fecha com "validator
   unavailable".
 
-## Provisionamento no 1º boot
+## 9.7 Provisionamento no 1º boot
 
 O `docker/provision.sh` faz, nesta ordem:
 1. `docker load` das imagens que faltarem;
@@ -113,7 +130,7 @@ O `docker/provision.sh` faz, nesta ordem:
 
 Rodar de novo não recria nada. Na placa, quem o chama é o `/etc/init.d/S99bizas`, uma única vez, no 1º boot.
 
-## O que foi verificado, e onde
+## 9.8 O que foi verificado, e onde
 
 **No PC (Docker 29.9.3), pelo `scripts/containers-test.sh`, em amd64 nativo e em arm64 sob qemu:**
 - **Arquitetura:** a config da imagem e o cabeçalho ELF do `/app` dentro de cada tar conferem com a

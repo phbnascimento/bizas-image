@@ -1,29 +1,32 @@
-# 8. Este manual e o PDF
+# 11. Este manual e o PDF
 
-## 8.1 Estrutura
+## 11.1 Estrutura
 
 O manual fica em [`docs/manual/`](README.md), um arquivo Markdown por capítulo, numerados na ordem de
 leitura:
 
-| Arquivo                       | Capítulo                                                                  |
-|-------------------------------|---------------------------------------------------------------------------|
-| `01-architecture.md`          | camadas, containers, portas, rede, volume e fluxo de inicialização        |
-| `02-build-environment.md`     | máquina de build, ferramentas, espaço em disco e a sequência até a imagem |
-| `03-buildroot.md`             | cada opção do Buildroot alterada pelo projeto                             |
-| `04-kernel-and-drivers.md`    | o kernel, o fragmento do Docker, módulos e o `check-config.sh`            |
-| `05-licenses-and-versions.md` | manifesto de licenças e versões fixadas                                   |
-| `06-tests.md`                 | plano de testes, resultados e sabotagens                                  |
-| `07-flashing-and-recovery.md` | gravação, primeiro boot, manutenção, recuperação e diagnóstico            |
-| `08-manual-and-pdf.md`        | este capítulo                                                             |
+| Arquivo                       | Capítulo                                                                              |
+|-------------------------------|---------------------------------------------------------------------------------------|
+| `00-overview.md`              | o problema, quem usa, o escopo, os requisitos e os critérios de sucesso               |
+| `01-architecture.md`          | camadas, containers, fluxo de uma mensagem e acesso de manutenção                     |
+| `02-build-environment.md`     | máquina de build, ferramentas, espaço em disco e a sequência até a imagem             |
+| `03-buildroot.md`             | cada opção do Buildroot alterada pelo projeto                                         |
+| `04-kernel-and-drivers.md`    | o kernel, o fragmento do Docker, módulos e o `check-config.sh`                        |
+| `05-licenses-and-versions.md` | manifesto de licenças e versões fixadas                                               |
+| `06-tests.md`                 | plano de testes, resultados e sabotagens                                              |
+| `07-flashing-and-recovery.md` | gravação, primeiro boot, manutenção, recuperação e diagnóstico                        |
+| `08-boot-and-init.md`         | sequência de boot, serviços, escolhas que mantêm o caminho curto e a medição do tempo |
+| `09-docker.md`                | o Docker na imagem, os containers, a rede, o volume, os privilégios e a saúde         |
+| `10-application.md`           | configuração, rotas, uso da página e operação                                         |
+| `11-manual-and-pdf.md`        | este capítulo                                                                         |
 
 O `README.md` da pasta é o índice. Os diagramas ficam em `docs/manual/img/`, em SVG, com cores para fundo
 claro e escuro (`prefers-color-scheme`). O formato do bloco e as regras do protocolo não se repetem aqui:
-estão em [`docs/protocol.md`](../protocol.md), e os detalhes dos containers em
-[`docs/containers.md`](../containers.md).
+estão em [`docs/protocol.md`](../protocol.md).
 
 Os arquivos Markdown são a fonte editável. O PDF é gerado a partir deles e não entra no Git, como a imagem.
 
-## 8.2 Gerar o PDF
+## 11.2 Gerar o PDF
 
 ```sh
 scripts/build-manual.sh
@@ -45,7 +48,7 @@ Saída: `output/manual/bizas-manual.pdf`, mais o HTML intermediário `output/man
 traz a versão dos containers (de `docker/version.env`), a data de geração e a revisão do Git
 (`git describe --always --dirty --tags`), para identificar de que código o PDF saiu.
 
-## 8.3 Manter o manual em dia
+## 11.3 Manter o manual em dia
 
 Toda mudança em código, configuração, scripts ou containers atualiza, na mesma etapa, os capítulos que ela
 afeta, como acontece com os hashes de `evidence/`. Depois, `scripts/build-manual.sh` regenera o PDF.
