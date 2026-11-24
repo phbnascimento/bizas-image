@@ -143,7 +143,10 @@ válida no campo, a tela mostra também o QR code dela (aviso: não compartilhe 
 Clicar no ID de uma pessoa (na barra ou numa mensagem) abre um painel com a chave pública completa, o QR code
 dela, um nome, uma cor e uma nota de texto livre que só este navegador guarda (`bizas.names`, `bizas.hues` e
 `bizas.notes` no `localStorage`; a nota é só para você, para anotar algo sobre o dono da chave), o
-índice e a hora do primeiro bloco dela e quantos blocos enviou. A engrenagem abre as configurações: língua
+índice e a hora do primeiro bloco dela e quantos blocos enviou. O "ver", à direita do ID em cada mensagem, abre
+no mesmo lugar os campos do bloco: o valor bruto de cada um (`room`, `stamp`, `nonce`, `info`, `type`, `length`,
+`author`, `sig`, `prev` e os bytes usados do `data`) e, embaixo, uma leitura dele, como a data UTC do carimbo, o
+nome do tipo e quantos bits zero a assinatura tem. A engrenagem abre as configurações: língua
 (português ou inglês) e tema (claro ou escuro), guardados em `bizas.lang` e `bizas.theme`. O QR code vem do
 `qrcode-generator` (MIT), embutido na página.
 

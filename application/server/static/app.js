@@ -2,12 +2,12 @@
 // transmite. Protocolo: docs/protocol.md
 import {
   BLOCK_SIZE, DEFAULT_WORK_BITS, DataType, MAX_DATA_LENGTH, MAX_WORK_BITS, decodeBlock, equalBytes, fingerprint, fromHex,
-  hasWork, hex, mineBlock, nextBlock, textOf, uploadString, verifyBlock,
+  hasWork, hex, leadingZeroBits, mineBlock, nextBlock, textOf, uploadString, verifyBlock,
 } from "./bizas.js";
 import { MAX_POLL_OPTIONS, MIN_POLL_OPTIONS, Tally, parseVote, pollData, uploadPoll, uploadVote } from "./poll.js";
 import { formatWhen } from "./when.js";
 import { applyStatic, initLang, onLangChange, setLang, t } from "./i18n.js";
-import { FIELDS, composeBlock, convertText, formatField } from "./fraud.js";
+import { FIELDS, composeBlock, convertText, formatField, stampToDate } from "./fraud.js";
 import { qrSvg } from "./qr.js";
 import { initTheme, setTheme } from "./theme.js";
 
@@ -23,7 +23,7 @@ const ui = {
   plus: $("plus"), plusMenu: $("plus-menu"), pollPanel: $("poll-panel"), pollForm: $("poll-form"),
   pollQuestion: $("poll-question"), pollOptions: $("poll-options"), pollAdd: $("poll-add"),
   pollExclusive: $("poll-exclusive"), pollGenesis: $("poll-genesis"), pollErr: $("poll-err"), pollCount: $("poll-count"),
-  pollCreate: $("poll-create"),
+  pollCreate: $("poll-create"), blockPanel: $("block-panel"), bTitle: $("b-title"), bFields: $("b-fields"),
 };
 ui.workBits.max = String(MAX_WORK_BITS);
 ui.workBits.value = String(DEFAULT_WORK_BITS);
@@ -51,6 +51,7 @@ document.addEventListener("click", (ev) => {
   else {
     $("panel").hidden = true; // um painel por vez
     $("poll-panel").hidden = true;
+    $("block-panel").hidden = true;
     settings.hidden = false;
   }
 });
@@ -171,6 +172,7 @@ paintWho(ui.me, keyPair.publicKey);
 // --- cadeia local ----------------------------------------------------------
 let head = null;   // último bloco aceito
 let height = 0;
+let blocks = [];   // blocos aceitos, pelo índice: o painel "ver" mostra os campos deles
 let pending = null; // { text, sig, tries, fraud?, mining? }: sig é null enquanto a prova de trabalho roda
 // N da cadeia (o info do gênese): quantos bits zero cada assinatura precisa ter. null com a cadeia vazia
 let workBits = null;
@@ -223,6 +225,7 @@ function fillPanel() {
 function openPanel(keyHex) {
   closeSettings(); // um painel por vez
   ui.pollPanel.hidden = true;
+  closeBlockPanel();
   openKey = keyHex;
   ui.panel.hidden = false;
   ui.pName.value = names[keyHex] ?? "";
@@ -284,7 +287,14 @@ function render(block, index, pollErr) {
   when.className = "when";
   when.dataset.stamp = String(block.stamp);
   when.textContent = whenText(block.stamp);
-  meta.append(who, when);
+  // "ver" abre o painel com os campos do bloco
+  const view = document.createElement("button");
+  view.type = "button";
+  view.className = "view";
+  view.dataset.view = String(index);
+  view.dataset.i18n = "msg.view";
+  view.textContent = t("msg.view");
+  meta.append(who, when, view);
 
   let body = document.createElement("div");
   body.className = "text";
@@ -343,6 +353,7 @@ function apply(block) {
   const pollErr = tally.check(index, block);
   if (pollErr === null) tally.apply(index, block);
   head = block;
+  blocks.push(block);
   const key = hex(block.author);
   const info = authors.get(key);
   if (info) info.count++;
@@ -382,6 +393,8 @@ function apply(block) {
 function resetChain() {
   head = null;
   height = 0;
+  blocks = [];
+  closeBlockPanel(); // o bloco aberto pode não existir na cadeia nova
   workBits = null;
   tally = new Tally();
   pollCards.clear();
@@ -395,6 +408,71 @@ function resetChain() {
   ui.empty.hidden = false;
   fillPanel();
 }
+
+// --- painel do bloco -------------------------------------------------------
+// Os campos do bloco, na ordem do formato (docs/protocol.md), com o valor bruto e, quando ajuda, uma leitura dele
+let openBlock = null; // índice do bloco do painel aberto, ou null
+const typeNames = Object.fromEntries(Object.entries(DataType).map(([name, n]) => [n, name]));
+
+function fillBlockPanel() {
+  if (openBlock === null) return;
+  const b = blocks[openBlock];
+  ui.bTitle.textContent = t("block.title", { index: openBlock });
+  const room = roomName(b.room);
+  const used = b.length >= 0 && b.length <= MAX_DATA_LENGTH ? b.data.subarray(0, b.length) : b.data;
+  const rows = [
+    ...FIELDS.map((f) => [f.name, formatField(f, b)]),
+    ["data", used.length ? hex(used) : "—"],
+  ];
+  const readings = {
+    room: room ? `“${room}”` : null,
+    stamp: `${stampToDate(b.stamp)} UTC`,
+    info: openBlock === 0 ? t("block.infoGenesis") : null,
+    type: typeNames[b.type] ?? null,
+    length: t("block.bytes", { n: used.length }),
+    sig: t("block.zeroBits", { n: leadingZeroBits(b.sig) }),
+    prev: openBlock === 0 ? t("block.prevGenesis") : t("block.prevOf", { index: openBlock - 1 }),
+  };
+  // Um campo por linha, com um <hr> entre um campo e o seguinte
+  ui.bFields.replaceChildren(...rows.flatMap(([name, value], i) => {
+    const field = document.createElement("div");
+    field.className = "bfield";
+    const label = document.createElement("span");
+    label.className = "bname";
+    label.textContent = name;
+    const code = document.createElement("code");
+    code.textContent = value;
+    if (name === "author") code.style.color = colorOf(value);
+    field.append(label, code);
+    if (readings[name]) {
+      const note = document.createElement("span");
+      note.className = "note";
+      note.textContent = readings[name];
+      field.append(note);
+    }
+    return i === 0 ? [field] : [document.createElement("hr"), field];
+  }));
+}
+
+function openBlockPanel(index) {
+  closeSettings(); // um painel por vez
+  closePanel();
+  ui.pollPanel.hidden = true;
+  openBlock = index;
+  ui.blockPanel.hidden = false;
+  fillBlockPanel();
+}
+function closeBlockPanel() {
+  openBlock = null;
+  ui.blockPanel.hidden = true;
+}
+$("b-close").addEventListener("click", closeBlockPanel);
+document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") closeBlockPanel(); });
+document.addEventListener("click", (ev) => {
+  const view = ev.target.closest?.("[data-view]");
+  if (view && blocks[view.dataset.view]) openBlockPanel(Number(view.dataset.view));
+});
+onLangChange(fillBlockPanel);
 
 // --- enquetes --------------------------------------------------------------
 // Extensão POLL/VOTE (poll.js). A enquete aparece como uma mensagem, com uma barra por opção; o voto aparece como uma
@@ -551,6 +629,7 @@ $("menu-poll").addEventListener("click", () => {
   closePlusMenu();
   closeSettings(); // um painel por vez
   closePanel();
+  closeBlockPanel();
   ui.pollPanel.hidden = false;
   refreshPollForm();
   ui.pollQuestion.focus();

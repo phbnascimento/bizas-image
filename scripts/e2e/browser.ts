@@ -198,6 +198,21 @@ const blocksJson = JSON.parse(await ev(A, `fetch("/chain.json").then(r => r.text
 const zeroBits = (sigHex: string) => { let n = 0; for (const ch of sigHex) { const v = parseInt(ch, 16); if (v) return n + Math.clz32(v) - 28; n += 4; } return n; };
 if (blocksJson[0].info !== WORK || !blocksJson.every((b: { sig: string }) => zeroBits(b.sig) >= WORK)) throw new Error(`proof of work missing: ${JSON.stringify(blocksJson.map((b: { info: number; sig: string }) => [b.info, b.sig.slice(0, 4)]))}`);
 console.log("zero bits per block:", blocksJson.map((b: { sig: string }) => zeroBits(b.sig)).join(" "));
+// "ver": o painel do bloco 1 mostra os campos que o server exporta no /chain.json, e o bloco 0 é o gênese
+await ev(A, `document.querySelectorAll(".msg .view")[1].click()`);
+await until(A, `!document.getElementById("block-panel").hidden`, "the block panel");
+const shown = JSON.parse(await ev(A, `JSON.stringify(Object.fromEntries([...document.querySelectorAll("#b-fields .bfield")].map(f => [f.querySelector(".bname").textContent, f.querySelector("code").textContent])))`));
+const b1 = blocksJson[1];
+for (const k of ["stamp", "nonce", "info", "length", "author", "sig", "prev"]) {
+  if (shown[k] !== String(b1[k])) throw new Error(`block panel ${k}: ${shown[k]} != ${b1[k]}`);
+}
+if (await ev(A, `document.querySelectorAll("#b-fields > hr").length`) !== Object.keys(shown).length - 1) throw new Error("block panel: one hr between fields");
+if (shown.prev !== blocksJson[0].sig || await ev(A, `document.getElementById("b-title").textContent`) !== "Block 1") throw new Error("block panel title or prev");
+await ev(A, `document.querySelectorAll(".msg .view")[0].click()`);
+if (!(await ev(A, `document.getElementById("b-fields").textContent`)).includes("genesis")) throw new Error("block panel: genesis");
+await ev(A, `document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }))`);
+if (!await ev(A, `document.getElementById("block-panel").hidden`)) throw new Error("block panel did not close");
+console.log("block panel: fields of block 1 match /chain.json");
 const ta = await texts(A), tb = await texts(B);
 console.log("A:", ta); console.log("B:", tb);
 if (JSON.stringify(ta) !== JSON.stringify(tb)) throw new Error("A and B diverge");
