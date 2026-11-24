@@ -105,6 +105,24 @@ na enquete do bloco 6) foram acrescentados ao fim dela, minerados com o mesmo N:
 
 Resultado do `check-image.sh`: 85 conferências `ok`, nenhuma `FAIL`, `IMAGE CHECK PASSED`.
 
+**Build do zero.** Os passos da seção 2.4 foram seguidos num container Debian 13 limpo (só os pacotes da seção 2.2,
+mais `docker-cli` e `docker-buildx`), a partir de um clone novo da tag `0.4`, com o kernel e o daemon do Docker do PC:
+
+| Passo                       | Tempo   |
+|-----------------------------|--------:|
+| `fetch-buildroot.sh`        | 19 s    |
+| `configure-buildroot.sh`    | 18 s    |
+| `containers-build.sh arm64` | 3 s     |
+| `build-image.sh`            | 1 858 s |
+| `check-image.sh` (85 `ok`)  | 1 s     |
+
+O Docker do PC já tinha a imagem `golang` e as camadas no cache, então o `containers-build.sh` não parte de um cache
+vazio. A máquina tem 20 threads e 15 GB de RAM. A lista de arquivos do rootfs é a mesma da árvore de trabalho
+(2 155 arquivos); 47 deles têm conteúdo diferente: o BusyBox, as ferramentas do util-linux, o `xz`, o `runc`, os dois
+tars dos containers, o `/etc/shadow` (o hash leva sal) e o `configs.ko.xz`. `/etc/issue`, `/etc/passwd` e o
+`prompt.sh` são iguais. O build do zero não cabe num `/tmp` em tmpfs de 7,7 GB: a primeira tentativa, ali, parou com
+`no space left on device` no `host-go`.
+
 ## 6.4 Containers
 
 | Caso            | O que conferir                                                                                                                                                                 | Como                                                                                    | Resultado         |
@@ -182,6 +200,7 @@ provisiona de novo; o `provision.sh` é idempotente (seção 6.4).
 | `reset-chat`                                   | `ArchiveChain` devolvendo sucesso sem arquivar; o script sem exigir terminal ou `--yes`                                                                                                      | `TestArchiveChain` reprovou; o script, rodado sem terminal com um `docker` falso, saiu com código 1 em vez do 2 que o `containers-test.sh` exige, sem chamar o `docker`                                                                                                                        |
 | Enquetes no Go                                 | o `Append` sem as regras de enquete; o `ChainVerify` sem elas; a regra de exclusividade tirada                                                                                               | `TestPolls` reprovou nos três; `TestOldChainWithMalformedPollQuarantined` no segundo; `TestVector` no terceiro (o código do caso `vote_exclusive_second_option` deixa de bater)                                                                                                                |
 | Usuário `anon` e prompt                        | o `prompt.sh` do overlay diferente do da imagem; a senha do `anon` errada na tabela, com a imagem refeita; a tabela sem o `anon`, com a imagem refeita                                       | `check-image.sh` reprovou: `/etc/profile.d/prompt.sh differs from the overlay or is missing`; `anon password hash does not match bizasprotocol`; `user anon in /etc/passwd: 'missing'` e mais duas falhas                                                                                      |
+| BusyBox arm64 que não roda                     | o `bin/busybox` do rootfs sem permissão de execução, num container                                                                                                                           | `check-image.sh` reprovou: `cannot run the arm64 BusyBox (missing …/bin/busybox); qemu-aarch64 has to be registered in the kernel (binfmt_misc)`                                                                                                                                               |
 | Boas-vindas do console                         | um RA errado no gerador; a versão do `version.env` subida sem refazer a imagem; as cores tiradas do gerador; a arte sem dobrar os `\` e os `%`, rodada no `getty` do BusyBox arm64 da imagem | `check-image.sh` reprovou: `/etc/issue differs from the welcome banner` nos dois primeiros, e `/etc/issue does not greet with the current version` no segundo, e as três conferências de cor (magenta, amarelo e reset) nas cores tiradas; no `getty`, a arte sem dobrar perde o `%` e a barra |
 | Painel do bloco                                | o painel mostrando o bloco anterior ao clicado                                                                                                                                               | o `browser.sh` reprovou: `block panel stamp: 1795473828559295285 != 1795473828705026659`                                                                                                                                                                                                       |
 | Enquetes no JavaScript                         | o `poll.js` sem a regra de exclusividade; aceitando opção repetida; a página sem contar os votos                                                                                             | `bizas.test.js`: `vote_exclusive_second_option: js NONE, Go DUPLICATE_VOTE` e `poll_duplicate_option: js NONE, Go INVALID_POLL`; o `browser.sh` parou em `poll after two votes`, com as barras zeradas                                                                                         |

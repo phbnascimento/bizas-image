@@ -108,12 +108,16 @@ done
 
 echo "== init scripts parsed by the image's own BusyBox sh (qemu)"
 BB="$OUT/target/bin/busybox"
-if [ -x "$BB" ] && [ -e /proc/sys/fs/binfmt_misc/qemu-aarch64 ]; then
+# A prova é rodar o BusyBox arm64, não olhar o registro do binfmt: dentro de um container o /proc/sys/fs/binfmt_misc
+# não aparece, mas a emulação do kernel do PC funciona
+BB_ERR=""
+if [ -x "$BB" ]; then BB_ERR="$(QEMU_LD_PREFIX="$OUT/target" "$BB" true 2>&1 || echo "exit $?")"; else BB_ERR="missing $BB"; fi
+if [ -z "$BB_ERR" ]; then
   for f in etc/init.d/S99bizas usr/bin/set-date usr/bin/set-auto-date usr/bin/reset-chat opt/bizas/provision.sh; do
     QEMU_LD_PREFIX="$OUT/target" "$BB" sh -n "$OUT/target/$f" && ok "busybox sh -n /$f" || fail "busybox sh -n /$f"
   done
 else
-  fail "cannot run the arm64 BusyBox (missing $BB or binfmt qemu-aarch64)"
+  fail "cannot run the arm64 BusyBox ($BB_ERR); qemu-aarch64 has to be registered in the kernel (binfmt_misc)"
 fi
 
 echo "== boot partition ($(realpath --relative-to="$ROOT" "$BOOT"))"

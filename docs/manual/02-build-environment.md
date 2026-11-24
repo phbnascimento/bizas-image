@@ -47,7 +47,7 @@ ficam em `output/buildroot/host/`.
 | `scripts/configure-buildroot.sh`                        | o mesmo que o Buildroot                                                                |
 | `scripts/containers-build.sh`                           | Docker com Buildx, `python3`                                                           |
 | `scripts/build-image.sh`                                | o mesmo que o Buildroot, `xz`, `python3` (o post-build confere os tars)                |
-| `scripts/check-image.sh`                                | binfmt `qemu-aarch64` registrado no kernel do PC; `openssl` é opcional                 |
+| `scripts/check-image.sh`                                | emulação `qemu-aarch64` no kernel do PC (binfmt); `openssl` é opcional                 |
 | `scripts/flash-sd.sh`                                   | `lsblk`, `sudo`, `dd`, `blockdev`, `sha256sum`                                         |
 | `scripts/containers-test.sh`                            | Docker; para `arm64`, binfmt `qemu-aarch64`; mais o que o `browser.sh` pede            |
 | `scripts/e2e/browser.sh`                                | `go`, `deno`, `firefox`, `curl`, `ip`, `ss`, `zbarimg`                                 |
@@ -61,6 +61,10 @@ Notas:
   estágio final (`FROM scratch`) só copia arquivos. A emulação `qemu-aarch64` por binfmt é usada para
   executar binários arm64 no PC: o BusyBox da imagem no `check-image.sh` e os containers no
   `containers-test.sh arm64`.
+- **Debian.** Os pacotes da lista acima têm os mesmos nomes no Debian (`build-essential` junto); o Docker vem de
+  `docker-cli` e `docker-buildx`. Dentro de um container, o `containers-build.sh` precisa do socket do Docker do PC, e
+  o `check-image.sh` usa a emulação `qemu-aarch64` do kernel do PC, que funciona dentro do container mesmo sem o
+  `qemu` instalado nele, porque o registro tem a flag `F`.
 - **`debugfs` e `mtools`.** O `check-image.sh` e o `flash-sd.sh` usam os que o Buildroot compila em
   `output/buildroot/host/`, não os do sistema.
 - **Imagem `golang`.** O build dos containers usa `golang:1.27.3-alpine`, fixada por digest em
@@ -84,7 +88,7 @@ executado:
 | `output/images/`                     | `bizas-rpi4.img.xz`                                    | 79 MiB     |
 | `output/containers/`                 | tars `docker save` (0.1 a 0.4, arm64 e amd64)          | 48 MiB     |
 
-Somando, a árvore de trabalho com o build completo ocupa cerca de 13 GiB, além da imagem `golang` no cache do
+Somando, a árvore de trabalho com o build completo ocupa cerca de 13 GiB (não cabe num `/tmp` em tmpfs pequeno), além da imagem `golang` no cache do
 Docker (376 MB, pelo `docker images`). Sem o `legal-info`, que é opcional, a saída do Buildroot fica cerca
 de 0,8 GiB menor.
 
