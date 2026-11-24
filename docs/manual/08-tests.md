@@ -1,13 +1,13 @@
-# 6. Testes
+# 8. Testes
 
 Este capítulo lista os testes automáticos do projeto: o que cada um confere, como rodá-lo e o resultado
 obtido. As saídas citadas são
 da execução de 23/11/2026 na máquina de referência do capítulo 2, com o código da versão 0.4a.
 
 Uma conferência só merece confiança depois de ser **sabotada**, ou seja, depois de se ver que ela reprova
-quando o que ela confere está errado. A seção 6.9 lista as sabotagens feitas.
+quando o que ela confere está errado. A seção 8.9 lista as sabotagens feitas.
 
-## 6.1 Como rodar
+## 8.1 Como rodar
 
 ```sh
 cd application && go test ./... && cd ..                  # testes Go: bloco, cadeia, validator, server, página embutida
@@ -23,7 +23,7 @@ O `containers-test.sh` recusa rodar se já existir container, rede ou volume do 
 que não tenha criado, e remove ao sair tudo o que criou. Em arm64, os containers rodam sob emulação: o
 funcionamento vale, o tempo não.
 
-## 6.2 Funcional
+## 8.2 Funcional
 
 | Caso                      | O que conferir                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | Como                                                                                                                                                         | Resultado             |
 |---------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------|
@@ -93,11 +93,11 @@ na enquete do bloco 6) foram acrescentados ao fim dela, minerados com o mesmo N:
 | a exportada pelo E2E             | `valid: 15 blocks` | `valid: 15 blocks`                            |
 | a mesma com os dois votos iguais | `valid: 17 blocks` | `INVALID: DUPLICATE_VOTE at block 16 (of 17)` |
 
-## 6.3 Imagem e configuração
+## 8.3 Imagem e configuração
 
 | Caso                      | O que conferir                                                                                                                                                                                                                                                                                                                                                                                                                                                            | Como                                                          | Resultado                                                               |
 |---------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------|-------------------------------------------------------------------------|
-| Configuração do Buildroot | cada opção do fragmento e as selecionadas pelo `docker-engine` estão no `.config`; o defconfig gravado reproduz o mesmo `.config` do zero                                                                                                                                                                                                                                                                                                                                 | `scripts/configure-buildroot.sh`                              | `configuration OK: 41 lines in bizas_rpi4_defconfig; nothing was built` |
+| Configuração do Buildroot | cada opção do fragmento e as selecionadas pelo `docker-engine` estão no `.config`; o defconfig gravado reproduz o mesmo `.config` do zero                                                                                                                                                                                                                                                                                                                                 | `scripts/configure-buildroot.sh`                              | `configuration OK: 42 lines in bizas_rpi4_defconfig; nothing was built` |
 | Rootfs                    | hostname, hash SHA-256 crypt e senha do root e do `anon` (usuário sem privilégios, com home), `prompt.sh` igual ao overlay, o `/etc/issue` igual ao que o gerador faz da arte, da versão e dos integrantes (com os 4 RAs e a saudação da versão atual), `S99bizas` e comandos de `/usr/bin` iguais ao overlay e com modo 755, `S60dockerd` presente, só o `S99bizas` nas posições `S9x`, `/opt/bizas` com exatamente os 4 arquivos e os tars com o SHA-256 de `evidence/` | `scripts/check-image.sh`, lendo o `rootfs.ext4` com `debugfs` | passou                                                                  |
 | Scripts de init           | `S99bizas`, `set-date`, `set-auto-date`, `reset-chat` e `provision.sh` passam pelo `sh -n` do BusyBox arm64 da própria imagem                                                                                                                                                                                                                                                                                                                                             | `scripts/check-image.sh`, via binfmt `qemu-aarch64`           | passou                                                                  |
 | Partição de boot          | `config.txt` e `cmdline.txt` iguais aos do repositório; `Image`, `bcm2711-rpi-4-b.dtb`, `start4.elf` e `fixup4.dat` presentes                                                                                                                                                                                                                                                                                                                                             | `scripts/check-image.sh`, lendo o `boot.vfat` com `mtools`    | passou                                                                  |
@@ -123,7 +123,7 @@ tars dos containers, o `/etc/shadow` (o hash leva sal) e o `configs.ko.xz`. `/et
 `prompt.sh` são iguais. O build do zero não cabe num `/tmp` em tmpfs de 7,7 GB: a primeira tentativa, ali, parou com
 `no space left on device` no `host-go`.
 
-## 6.4 Containers
+## 8.4 Containers
 
 | Caso            | O que conferir                                                                                                                                                                 | Como                                                                                    | Resultado         |
 |-----------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------|-------------------|
@@ -137,7 +137,7 @@ tars dos containers, o `/etc/shadow` (o hash leva sal) e o `configs.ko.xz`. `/et
 Os dois `containers-test.sh` (amd64 e arm64) terminaram com 57 conferências `ok` cada e
 `CONTAINERS PASSED`. Cada um roda também o `browser.sh` inteiro contra os containers.
 
-## 6.5 Rede
+## 8.5 Rede
 
 | Caso                     | O que conferir                                                                                                      | Como                                                   | Resultado           |
 |--------------------------|---------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------|---------------------|
@@ -149,7 +149,7 @@ Os dois `containers-test.sh` (amd64 e arm64) terminaram com 57 conferências `ok
 | Porta de manutenção      | o server se recusa a iniciar se `ADMIN_ADDR` não for loopback                                                       | `requireLoopback` em `application/server/main.go`      | conferido no código |
 | `set-auto-date` sem rede | sai com código 1 e uma mensagem em inglês que sugere o `set-date`                                                   | `TestAutoDateNoNetworkMessage` e `containers-test.sh`  | passou              |
 
-## 6.6 Reinício de containers
+## 8.6 Reinício de containers
 
 | Caso                       | O que conferir                                                           | Como                                                                | Resultado |
 |----------------------------|--------------------------------------------------------------------------|---------------------------------------------------------------------|-----------|
@@ -158,7 +158,7 @@ Os dois `containers-test.sh` (amd64 e arm64) terminaram com 57 conferências `ok
 | Envio com o validator fora | o navegador recebe `VALIDATOR_UNAVAILABLE`                               | `TestValidatorDownOnSubmit`                                         | passou    |
 | Política de reinício       | os dois containers têm `restart unless-stopped`                          | `docker inspect` no `containers-test.sh`                            | passou    |
 
-## 6.7 Persistência
+## 8.7 Persistência
 
 | Caso                                | O que conferir                                                                                                                        | Como                                                                  | Resultado |
 |-------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------|-----------|
@@ -166,7 +166,7 @@ Os dois `containers-test.sh` (amd64 e arm64) terminaram com 57 conferências `ok
 | Reiniciar o validator               | a cadeia exportada antes e depois do `docker restart` tem o mesmo SHA-256 (3072 bytes, 6 blocos)                                      | `containers-test.sh`                                                  | passou    |
 | Relógio atrasado depois do reinício | com o relógio da placa atrás do último carimbo, o validator aceita o histórico e as mensagens seguintes continuam depois das gravadas | `TestRebootWithClockBehind`, `TestRunStartAfterRebootWithClockBehind` | passou    |
 
-## 6.8 Perda de energia
+## 8.8 Perda de energia
 
 O validator só responde 200 a um bloco depois de gravá-lo e fazer `fsync` (`Append` em
 `application/bizas/chain.go`). Na partida, ele confere o arquivo antes de escutar. Os testes reproduzem o
@@ -181,9 +181,9 @@ estado em que uma queda de energia deixaria o arquivo:
 
 No provisionamento, a marca `/var/lib/bizas/provisioned` só é gravada depois que os dois containers estão
 rodando, seguida de `sync`. Uma queda no meio do `docker load` deixa a marca ausente, e o boot seguinte
-provisiona de novo; o `provision.sh` é idempotente (seção 6.4).
+provisiona de novo; o `provision.sh` é idempotente (seção 8.4).
 
-## 6.9 Sabotagens
+## 8.9 Sabotagens
 
 | Conferência                                    | Sabotagem                                                                                                                                                                                    | Resultado                                                                                                                                                                                                                                                                                      |
 |------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -191,7 +191,7 @@ provisiona de novo; o `provision.sh` é idempotente (seção 6.4).
 | Limites do `length`                            | `length` acima do máximo e negativo                                                                                                                                                          | `INVALID_LENGTH` (`TestSabotage`)                                                                                                                                                                                                                                                              |
 | Encadeamento                                   | bloco reassinado com `prev` trocado, sala trocada, carimbo voltando no tempo                                                                                                                 | `NO_HASH_CONTINUITY`, `INVALID_ROOM`, `NO_TIMESTAMP_CONTINUITY` (`TestSabotageChain`)                                                                                                                                                                                                          |
 | Assinatura no JavaScript                       | um byte trocado no bloco                                                                                                                                                                     | a verificação falha (`bizas.test.js`)                                                                                                                                                                                                                                                          |
-| `validator verify`                             | byte 1224 (bloco 2) da cadeia exportada trocado                                                                                                                                              | `INVALID: FRAUD at block 2 (of 6)` (`browser.sh`, toda execução)                                                                                                                                                                                                                               |
+| `validator verify`                             | byte 1224 (bloco 2) da cadeia exportada trocado                                                                                                                                              | `INVALID: FRAUD at block 2 (of 15)` (`browser.sh`, toda execução)                                                                                                                                                                                                                               |
 | Hashes dos tars na imagem                      | primeiro dígito do SHA-256 do validator trocado em `evidence/hashes-containers.txt`                                                                                                          | `FAIL  bizas-validator tar sha256 b38cf143…, evidence 038cf143…` e `IMAGE CHECK FAILED: 1 failure(s)`                                                                                                                                                                                          |
 | Opções do Buildroot                            | três opções acrescentadas ao fragmento: dois símbolos inexistentes e `BR2_PACKAGE_SYSTEMD=y`, que depende do init systemd                                                                    | `missing in .config` para as três e `ERROR: options above were dropped by kconfig`                                                                                                                                                                                                             |
 | Prova de trabalho no Go                        | `HasWork` sempre verdadeiro; sem o limite de 20 bits; `Append` e `ChainVerify` ignorando o trabalho dos blocos depois do gênese                                                              | `TestVector` (os nonces deixam de bater) e `TestProofOfWork` reprovaram                                                                                                                                                                                                                        |
@@ -210,9 +210,9 @@ restaurado em seguida: o `git status` ficou limpo e o `configure-buildroot.sh` v
 sabotagem do `reset-chat`, as das enquetes, a do painel do bloco e as do `anon`, do prompt e das boas-vindas também foram executadas em 23/11/2026, e cada
 arquivo sabotado foi restaurado da cópia.
 
-## 6.10 Script de medição do boot
+## 8.10 Script de medição do boot
 
-O `scripts/measure-boot.sh` (capítulo 8, seção 8.6) foi exercitado no PC, com o `scripts/dev-server.sh` em outra porta
+O `scripts/measure-boot.sh` (capítulo 5, seção 5.6) foi exercitado no PC, com o `scripts/dev-server.sh` em outra porta
 fazendo o papel da placa: o servidor sobe um tempo depois de o script começar a contar, como a placa depois de
 energizada. Isso confere o comportamento do script, não o tempo de boot.
 

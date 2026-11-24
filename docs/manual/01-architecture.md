@@ -16,7 +16,7 @@ necessário para iniciar o Docker. A aplicação roda em dois containers. O prot
 | Kernel         | Linux 6.12.61 da árvore `raspberrypi/linux`, `bcm2711_defconfig` mais o fragmento do Docker                 | [`kernel-config/docker.fragment`](../../kernel-config/docker.fragment), [capítulo 4](04-kernel-and-drivers.md)      |
 | Init           | init do BusyBox; `/etc/inittab` e os scripts de `/etc/init.d`                                               | Buildroot (`BR2_INIT_BUSYBOX`), [`S99bizas`](../../rootfs-overlay/etc/init.d/S99bizas)                              |
 | Docker         | `dockerd`, `containerd`, `runc` e `iptables`, do pacote `docker-engine`; o comando `docker` do `docker-cli` | [`buildroot.fragment`](../../buildroot-external/board/bizas/rpi4/buildroot.fragment), [capítulo 3](03-buildroot.md) |
-| Aplicação      | `bizas-validator:0.4a` e `bizas-server:0.4a`, dois binários Go estáticos em imagens `FROM scratch`          | [`docker/`](../../docker), [`application/`](../../application), [capítulo 9](09-docker.md)                          |
+| Aplicação      | `bizas-validator:0.4a` e `bizas-server:0.4a`, dois binários Go estáticos em imagens `FROM scratch`          | [`docker/`](../../docker), [`application/`](../../application), [capítulo 6](06-docker.md)                          |
 | Interface      | página web servida pelo `bizas-server`, aberta no navegador de outro aparelho                               | [`application/server/static/`](../../application/server/static)                                                     |
 
 A imagem não tem ambiente gráfico. A interface do usuário é a página web, aberta em outro aparelho da
@@ -44,7 +44,7 @@ mensagem é válida.
 As opções de execução estão em [`docker/provision.sh`](../../docker/provision.sh) (`COMMON_OPTS`), e o
 usuário 65532 vem dos Dockerfiles. Nenhum container roda como root, em modo privilegiado, com o socket do
 Docker montado ou com dispositivo repassado. O `scripts/containers-test.sh` confere cada uma dessas
-propriedades com `docker inspect` (capítulo 6).
+propriedades com `docker inspect` (capítulo 8).
 
 ### Portas
 
@@ -69,9 +69,10 @@ manutenção nunca fica alcançável pela rede, nem por engano de configuração
 
 ### Ordem de partida e saúde
 
-Os dois containers sobem em paralelo. O server começa a escutar logo e tenta alcançar o validator por até
-um minuto (`WaitValidator`). O `GET /health` do server só responde 200 quando o `GET /health` do validator
-também responde 200; senão, responde 503 `validator unavailable`
+Os dois containers sobem em paralelo. O server começa a escutar logo e consulta o validator a cada pedido, sem
+depender da ordem de partida; o `WaitValidator` só registra no log quando o validator respondeu pela primeira vez
+(ou avisa se ele não responder em um minuto). O `GET /health` do server só responde 200 quando o `GET /health` do
+validator também responde 200; senão, responde 503 `validator unavailable`
 ([`application/server/server.go`](../../application/server/server.go)). Por isso, uma resposta 200 do
 `/health` da porta 80 significa que a aplicação inteira está de pé: a página, o repasse e o dono da cadeia.
 
@@ -108,7 +109,7 @@ Da energia à aplicação: o firmware carrega o kernel, o init do BusyBox roda o
 `S60dockerd` inicia o `dockerd`, e o `S99bizas` provisiona os containers no 1º boot. Nos boots seguintes o próprio
 `dockerd` religa os containers, e a aplicação está disponível na primeira resposta 200 de `GET /health` na porta 80. A
 sequência completa, os serviços, as escolhas que mantêm o caminho curto e o procedimento de medição do tempo estão no
-[capítulo 8](08-boot-and-init.md).
+[capítulo 5](05-boot-and-init.md).
 
 ## 1.5 Acesso de manutenção
 

@@ -12,12 +12,12 @@ leitura:
 | `02-build-environment.md`     | máquina de build, ferramentas, espaço em disco e a sequência até a imagem             |
 | `03-buildroot.md`             | cada opção do Buildroot alterada pelo projeto                                         |
 | `04-kernel-and-drivers.md`    | o kernel, o fragmento do Docker, módulos e o `check-config.sh`                        |
-| `05-licenses-and-versions.md` | manifesto de licenças e versões fixadas                                               |
-| `06-tests.md`                 | plano de testes, resultados e sabotagens                                              |
-| `07-flashing-and-recovery.md` | gravação, primeiro boot, manutenção, recuperação e diagnóstico                        |
-| `08-boot-and-init.md`         | sequência de boot, serviços, escolhas que mantêm o caminho curto e a medição do tempo |
-| `09-docker.md`                | o Docker na imagem, os containers, a rede, o volume, os privilégios e a saúde         |
-| `10-application.md`           | configuração, rotas, uso da página e operação                                         |
+| `05-boot-and-init.md`         | sequência de boot, serviços, escolhas que mantêm o caminho curto e a medição do tempo |
+| `06-docker.md`                | o Docker na imagem, os containers, a rede, o volume, os privilégios e a saúde         |
+| `07-application.md`           | configuração, rotas, uso da página e operação                                         |
+| `08-tests.md`                 | plano de testes, resultados e sabotagens                                              |
+| `09-flashing-and-recovery.md` | gravação, primeiro boot, manutenção, recuperação e diagnóstico                        |
+| `10-licenses-and-versions.md` | manifesto de licenças e versões fixadas                                               |
 | `11-manual-and-pdf.md`        | este capítulo                                                                         |
 
 O `README.md` da pasta é o índice. Os diagramas ficam em `docs/manual/img/`, em SVG, com cores para fundo
@@ -62,4 +62,4 @@ Os números deste manual saem de comandos que podem ser repetidos:
 | Valor final das opções do kernel         | `output/buildroot/build/linux-custom/.config`                                                               |
 | Resultado do `check-config.sh` do Docker | `scripts/check-image.sh` → `evidence/kernel-check-config.txt`                                               |
 | Hashes e tamanhos da imagem              | `scripts/build-image.sh` → `evidence/hashes-image.txt`                                                      |
-| Resultados dos testes                    | os comandos da seção 6.1                                                                                    |
+| Resultados dos testes                    | os comandos da seção 8.1                                                                                    |

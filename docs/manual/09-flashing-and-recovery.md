@@ -1,6 +1,6 @@
-# 7. Gravação, recuperação e diagnóstico
+# 9. Gravação, recuperação e diagnóstico
 
-## 7.1 Gravar o cartão microSD
+## 9.1 Gravar o cartão microSD
 
 ```sh
 scripts/flash-sd.sh           # grava e confere lendo o cartão de volta
@@ -25,9 +25,9 @@ Para gravar a partir do arquivo entregue, `bizas-rpi4.img.xz`, em outra máquina
 `evidence/hashes-image.txt` e descomprimir direto para o cartão, por exemplo com
 `xz -dc bizas-rpi4.img.xz | sudo dd of=/dev/sdX bs=16M conv=fsync`, trocando `sdX` pelo cartão.
 
-## 7.2 Primeiro boot
+## 9.2 Primeiro boot
 
-No primeiro boot, o `S99bizas` provisiona os containers (capítulo 1). Entre as linhas do console, intercaladas
+No primeiro boot, o `S99bizas` provisiona os containers (capítulo 5, seção 5.4). Entre as linhas do console, intercaladas
 com a saída do próprio `docker load`, estão estas:
 
 ```text
@@ -42,7 +42,7 @@ com a saída do próprio `docker load`, estão estas:
 ```
 
 O `rcS` é uma ação `sysinit` do `/etc/inittab` sem terminal próprio, então a saída dele vai para
-`/dev/console`, que é o `ttyAMA0` (seção 7.4): essas linhas aparecem no console serial. No HDMI, a tela fica
+`/dev/console`, que é o `ttyAMA0` (seção 9.4): essas linhas aparecem no console serial. No HDMI, a tela fica
 parada enquanto o `docker load` roda, e o prompt de login só aparece depois, porque o init do BusyBox só
 inicia os `getty` quando todas as ações `sysinit` terminam. O provisionamento não pede nenhuma intervenção. Nos boots seguintes, o console mostra só
 `[bizas] already provisioned; dockerd restarts the containers`.
@@ -56,7 +56,7 @@ seguinte tenta de novo:
 | `[bizas] ERROR: provisioning failed; it will be retried on the next boot`                               | o `provision.sh` saiu com erro; a mensagem `[provision] ERROR: …` logo acima diz qual passo falhou |
 | `[bizas] ERROR: containers are not running; see: docker logs bizas-validator; docker logs bizas-server` | os containers foram criados, mas não estavam `running` depois de 25 tentativas de 0,2 s            |
 
-## 7.3 Acesso de manutenção
+## 9.3 Acesso de manutenção
 
 - **Console HDMI:** monitor e teclado na placa; login em `tty1`.
 - **Console serial:** `ttyAMA0` a 115200 baud, nos GPIOs 14 e 15 (seção 4.1).
@@ -77,7 +77,7 @@ Os logs dos containers sempre com `2>&1`: os binários escrevem no stderr. O `/v
 que é tmpfs, então o syslog não sobrevive a um reinício; os logs dos containers ficam com o `dockerd`, em
 `/var/lib/docker`, no rootfs.
 
-## 7.4 A ordem dos `console=`
+## 9.4 A ordem dos `console=`
 
 O `cmdline.txt` tem `console=tty1 console=ttyAMA0,115200`, nesta ordem, e ela não deve ser invertida.
 Segundo a documentação do kernel (`Documentation/admin-guide/serial-console.rst`), quando há vários
@@ -88,7 +88,7 @@ acrescentado pelo `post-build.sh` da Raspberry Pi para o HDMI. Com o `ttyAMA0` p
 fica num terminal: um na serial e um no HDMI. Com a ordem invertida, `/dev/console` passa a ser o `tty1`, e
 dois `getty` disputam o mesmo terminal: o teclado do HDMI parece "comer" caracteres no login.
 
-## 7.5 Refazer o provisionamento
+## 9.5 Refazer o provisionamento
 
 O provisionamento é refeito apagando a marca e rodando o `S99bizas`. As imagens e os containers podem ser
 removidos antes; o **volume `bizas-data` não**, porque ele guarda a cadeia.
@@ -104,7 +104,7 @@ O `provision.sh` é idempotente: carrega só as imagens que faltam, reaproveita 
 `bizas-data` se existirem, e recria só os containers que faltam ou que são de outra versão. Não execute
 `docker volume rm bizas-data`: isso apaga a cadeia.
 
-## 7.6 Recuperar a cadeia
+## 9.6 Recuperar a cadeia
 
 **Cópia e verificação, de outro aparelho.** A cadeia inteira sai em `GET /chain`, nos mesmos blocos de 512
 bytes do arquivo gravado. Qualquer pessoa confere a cópia sem confiar na placa:
@@ -137,7 +137,7 @@ Os blocos em quarentena não voltam para a cadeia: o primeiro deles é o inváli
 encadeiam nele. O arquivo existe para análise. Na revalidação de partida vale só a validade da cadeia, nunca
 a regra do relógio: com a placa acordando com o relógio atrasado, o histórico gravado continua válido.
 
-## 7.7 Começar um chat novo
+## 9.7 Começar um chat novo
 
 O `reset-chat`, como root no console, começa um chat com a cadeia vazia:
 
@@ -161,14 +161,14 @@ abertas reconectam, recebem o histórico vazio e mostram o campo de bits zero pa
 - **Hora real:** o validator religado tem outro `run_start`, então a hora informada por `set-date` ou
   `set-auto-date` deixa de valer e precisa ser informada de novo.
 
-## 7.8 Diagnóstico
+## 9.8 Diagnóstico
 
 | Sintoma                                                      | Causa conhecida                                                               | O que fazer                                                                                                                                                                                                                                       |
 |--------------------------------------------------------------|-------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Container em `Restarting (255)`, log com `exec format error` | a imagem do container é de outra arquitetura (por exemplo, `amd64` na placa)  | gerar com `scripts/containers-build.sh arm64`; o script confere a arquitetura dentro do tar, e o `post-build.sh` recusa embarcar um tar que não seja `linux/arm64`. Para conferir um tar: `python3 -I scripts/lib/check-image-tar.py <tar> arm64` |
 | O celular não abre a página, mas o notebook abre             | com dados móveis ligados, o celular prefere o 4G numa rede Wi-Fi sem internet | desligar os dados móveis do celular                                                                                                                                                                                                               |
-| Login no HDMI "come" caracteres                              | ordem dos `console=` invertida no `cmdline.txt`                               | manter `console=tty1 console=ttyAMA0,115200` (seção 7.4)                                                                                                                                                                                          |
-| `GET /health` responde 503 `validator unavailable`           | o server está de pé, mas o validator não responde                             | `docker logs bizas-validator 2>&1 \| tail`; o validator pode estar recarregando ou recusando o arquivo da cadeia (seção 7.6)                                                                                                                      |
+| Login no HDMI "come" caracteres                              | ordem dos `console=` invertida no `cmdline.txt`                               | manter `console=tty1 console=ttyAMA0,115200` (seção 9.4)                                                                                                                                                                                          |
+| `GET /health` responde 503 `validator unavailable`           | o server está de pé, mas o validator não responde                             | `docker logs bizas-validator 2>&1 \| tail`; o validator pode estar recarregando ou recusando o arquivo da cadeia (seção 9.6)                                                                                                                      |
 | A página não abre de nenhum aparelho                         | a placa não pegou endereço na `eth0`, ou o aparelho está em outra rede        | `ip addr show eth0` no console; o aparelho precisa estar na mesma rede local                                                                                                                                                                      |
 | `set-auto-date` falha                                        | a placa não alcança nenhum servidor SNTP                                      | usar `set-date AAAA-MM-DD-hh-mm-ss [--tz FUSO]`; a mensagem de erro sugere isso                                                                                                                                                                   |
-| O 1º boot ficou com a tela parada                            | o `docker load` dos dois tars está rodando                                    | esperar a mensagem `[bizas] provisioning done` (seção 7.2)                                                                                                                                                                                        |
+| O 1º boot ficou com a tela parada                            | o `docker load` dos dois tars está rodando                                    | esperar a mensagem `[bizas] provisioning done` (seção 9.2)                                                                                                                                                                                        |

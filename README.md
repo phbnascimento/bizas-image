@@ -70,7 +70,7 @@ Opções aplicadas aos dois containers:
 - healthcheck a cada 5 s, pelo próprio binário (`/app health`).
 
 Não há modo privilegiado, nem `docker.sock` montado, nem dispositivo repassado. Detalhes e
-justificativas em [docs/manual/09-docker.md](docs/manual/09-docker.md).
+justificativas em [docs/manual/06-docker.md](docs/manual/06-docker.md).
 
 ### A imagem Buildroot
 
@@ -360,8 +360,8 @@ A cadeia inteira pode ser baixada em `GET /chain` (link "Download the chain" na 
 fora da Pi:
 
 ```sh
-cd application && go build -o validator ./validator
-./validator verify chain.bin    # "valid: N blocks" ou "INVALID: <erro> at block <i> (of N)"
+cd application && go build -o /tmp/validator ./validator && cd ..
+/tmp/validator verify chain.bin    # "valid: N blocks" ou "INVALID: <erro> at block <i> (of N)"
 ```
 
 ### Impressão digital da cadeia
@@ -377,8 +377,8 @@ dígitos hex da assinatura do último bloco (ex.: `blocks 4 · fingerprint f881f
   cadeia exportada:
 
 ```sh
-./validator fingerprint chain.bin       # "#4 f881f48ff0301551" (a cabeça)
-./validator fingerprint chain.bin 2     # na altura 2, para comparar com quem viu só 2 blocos
+/tmp/validator fingerprint chain.bin    # "#4 f881f48ff0301551" (a cabeça)
+/tmp/validator fingerprint chain.bin 2  # na altura 2, para comparar com quem viu só 2 blocos
 ```
 
 ### É uma blockchain?
@@ -477,8 +477,8 @@ rede. Se o outro aparelho não conectar, é o firewall do PC bloqueando a porta.
 ## Documentação
 
 - [docs/manual/](docs/manual/README.md): manual técnico (visão geral, arquitetura, build, Buildroot, kernel,
-  licenças, testes, gravação e recuperação, boot e init, Docker e aplicação); o PDF sai de `scripts/build-manual.sh`.
+  boot e init, Docker, aplicação, testes, gravação e recuperação, licenças); o PDF sai de `scripts/build-manual.sh`.
 - [docs/protocol.md](docs/protocol.md): formato do bloco, regras de validade, rotas, WebSocket e o que
   foi verificado.
-- [docs/manual/09-docker.md](docs/manual/09-docker.md): o Docker na imagem, as imagens dos containers, rede, portas,
+- [docs/manual/06-docker.md](docs/manual/06-docker.md): o Docker na imagem, as imagens dos containers, rede, portas,
   volume, privilégios e provisionamento.

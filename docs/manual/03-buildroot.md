@@ -18,7 +18,7 @@ As customizações ficam num `BR2_EXTERNAL` próprio (`buildroot-external/`, nom
   que soma o tamanho dos arquivos de cada pacote no rootfs. O rootfs inteiro soma 218 857 037 bytes. Onde
   a opção não instala um pacote, o tamanho é o do arquivo que ela produz, medido com `ls -l`.
 - **Boot** é o raciocínio técnico sobre o efeito no tempo de inicialização. Não é uma medida.
-- **Licença** vem do `make legal-info` (capítulo 5).
+- **Licença** vem do `make legal-info` (capítulo 10).
 
 O defconfig gravado tem 42 linhas. Comparado com o `raspberrypi4_64_defconfig`, ele tem as 12 opções
 abaixo, todas do fragmento.
@@ -79,16 +79,16 @@ abaixo, todas do fragmento.
 
 ### `BR2_ROOTFS_OVERLAY`
 
-| Campo                 | Conteúdo                                                                                                                                                                                                        |
-|-----------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Caminho no menuconfig | System configuration → Root filesystem overlay directories                                                                                                                                                      |
-| Valor                 | `"$(BR2_EXTERNAL_BIZAS_PATH)/../rootfs-overlay"` (padrão: vazio)                                                                                                                                                |
-| Motivo                | Copia para o rootfs os arquivos do projeto: `/etc/init.d/S99bizas` (provisionamento no 1º boot) `/usr/bin/set-date` e `/usr/bin/set-auto-date` (hora real da página) e `/usr/bin/reset-chat` (chat novo).       |
-| Dependências          | nenhuma                                                                                                                                                                                                         |
-| Tamanho               | 4 scripts de shell; nenhum efeito mensurável                                                                                                                                                                    |
-| Boot                  | Acrescenta o `S99bizas` ao fim do `rcS`. Depois do 1º boot, ele só confere a existência da marca `/var/lib/bizas/provisioned` e sai, sem executar nenhum comando `docker`.                                      |
-| Segurança             | Os comandos de `/usr/bin` são usados pelo root no console; o `set-date` e o `set-auto-date` falam com a porta de manutenção do server, que só escuta no loopback do container, e o `reset-chat` usa o `docker`. |
-| Licença               | arquivos do projeto                                                                                                                                                                                             |
+| Campo                 | Conteúdo                                                                                                                                                                                                                                                   |
+|-----------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Caminho no menuconfig | System configuration → Root filesystem overlay directories                                                                                                                                                                                                 |
+| Valor                 | `"$(BR2_EXTERNAL_BIZAS_PATH)/../rootfs-overlay"` (padrão: vazio)                                                                                                                                                                                           |
+| Motivo                | Copia para o rootfs os arquivos do projeto: `/etc/init.d/S99bizas` (provisionamento no 1º boot), `/usr/bin/set-date` e `/usr/bin/set-auto-date` (hora real da página), `/usr/bin/reset-chat` (chat novo) e `/etc/profile.d/prompt.sh` (prompt do console). |
+| Dependências          | nenhuma                                                                                                                                                                                                                                                    |
+| Tamanho               | 5 arquivos de shell; nenhum efeito mensurável                                                                                                                                                                                                              |
+| Boot                  | Acrescenta o `S99bizas` ao fim do `rcS`. Depois do 1º boot, ele só confere a existência da marca `/var/lib/bizas/provisioned` e sai, sem executar nenhum comando `docker`.                                                                                 |
+| Segurança             | Os comandos de `/usr/bin` são usados pelo root no console; o `set-date` e o `set-auto-date` falam com a porta de manutenção do server, que só escuta no loopback do container, e o `reset-chat` usa o `docker`.                                            |
+| Licença               | arquivos do projeto                                                                                                                                                                                                                                        |
 
 ### `BR2_ROOTFS_POST_BUILD_SCRIPT`
 
@@ -101,7 +101,7 @@ abaixo, todas do fragmento.
 | Tamanho               | Os dois tars somam 5 943 808 bytes (3 092 480 do server e 2 851 328 do validator). No `graph-size`, os arquivos sem pacote somam 5 954 577 bytes, quase todos desses tars.                                                                                                                                                                     |
 | Boot                  | Nenhum nos boots seguintes. No 1º boot, os tars são carregados pelo `docker load`, fora da medição normal de boot.                                                                                                                                                                                                                             |
 | Segurança             | Antes de copiar, confere que o SHA-256 de cada tar é o registrado em `evidence/hashes-containers.txt` e que a imagem dentro dele é `linux/arm64`; se não for, o build para.                                                                                                                                                                    |
-| Licença               | aplicação do projeto (capítulo 5)                                                                                                                                                                                                                                                                                                              |
+| Licença               | aplicação do projeto (capítulo 10)                                                                                                                                                                                                                                                                                                             |
 
 ### `BR2_LINUX_KERNEL_CONFIG_FRAGMENT_FILES`
 
@@ -135,7 +135,7 @@ abaixo, todas do fragmento.
 |-----------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Caminho no menuconfig | Target packages → Hardware handling → Firmware → rpi-firmware → Path to a file stored as boot/cmdline.txt                                                                                                       |
 | Valor                 | `"$(BR2_EXTERNAL_BIZAS_PATH)/board/bizas/rpi4/cmdline.txt"` (padrão: `board/raspberrypi/cmdline.txt`)                                                                                                           |
-| Motivo                | A linha de comando do kernel é a do Buildroot com `quiet loglevel=3` no fim: `root=/dev/mmcblk0p2 rootwait console=tty1 console=ttyAMA0,115200 quiet loglevel=3`. A ordem dos `console=` é mantida (seção 7.4). |
+| Motivo                | A linha de comando do kernel é a do Buildroot com `quiet loglevel=3` no fim: `root=/dev/mmcblk0p2 rootwait console=tty1 console=ttyAMA0,115200 quiet loglevel=3`. A ordem dos `console=` é mantida (seção 9.4). |
 | Dependências          | `BR2_PACKAGE_RPI_FIRMWARE`                                                                                                                                                                                      |
 | Tamanho               | nenhum efeito mensurável                                                                                                                                                                                        |
 | Boot                  | Com `loglevel=3`, só mensagens de nível menor que 3 (`KERN_ERR`) vão para os consoles, e menos texto é escrito no HDMI e na serial de 115200 baud durante o boot.                                               |
@@ -186,16 +186,16 @@ abaixo, todas do fragmento.
 Estes pacotes não estão no fragmento. O kconfig os seleciona porque o `docker-engine` ou o `containerd`
 os exigem, e o `configure-buildroot.sh` confere que estão no `.config`.
 
-| Pacote (símbolo)                                                                                 | Selecionado por                | Para quê                                                    | Tamanho no rootfs | Licença                                                 |
-|--------------------------------------------------------------------------------------------------|--------------------------------|-------------------------------------------------------------|------------------:|---------------------------------------------------------|
-| `containerd` (`BR2_PACKAGE_CONTAINERD`)                                                          | `docker-engine`                | gerencia o ciclo de vida dos containers                     | 69 921 736 B      | Apache-2.0                                              |
-| `runc` (`BR2_PACKAGE_RUNC`)                                                                      | `containerd`                   | cria os containers (namespaces, cgroups)                    | 10 772 000 B      | Apache-2.0, LGPL-2.1 (libseccomp)                       |
-| `iptables` (`BR2_PACKAGE_IPTABLES`)                                                              | `docker-engine`                | regras de NAT da porta publicada e da rede `bizas-net`      | 1 350 192 B       | GPL-2.0                                                 |
-| `libseccomp` (`BR2_PACKAGE_LIBSECCOMP`)                                                          | `docker-engine`                | filtros seccomp dos containers                              | 183 848 B         | LGPL-2.1                                                |
-| `cgroupfs-v2-mount` (`BR2_PACKAGE_CGROUPFS_V2_MOUNT`)                                            | `docker-engine`, sem systemd   | o `S30cgroupfs2`, que monta o cgroup v2 em `/sys/fs/cgroup` | 615 B             | não declarada no pacote                                 |
-| `util-linux` (`BR2_PACKAGE_UTIL_LINUX`, com `_BINARIES`, `_MOUNT`, `_MOUNTPOINT`, `_PIVOT_ROOT`) | `containerd`                   | `mount`, `mountpoint` e `pivot_root` completos              | 5 518 760 B       | GPL-2.0+, BSD-4-Clause, LGPL-2.1+ e outras (capítulo 5) |
-| `host-go` (`BR2_PACKAGE_HOST_GO`)                                                                | `docker-engine`, `docker-cli`  | compila o Docker no host (Go 1.26.3); não vai para a placa  | —                 | BSD-3-Clause                                            |
-| `host-mkpasswd` (`BR2_PACKAGE_HOST_MKPASSWD`)                                                    | `BR2_TARGET_ENABLE_ROOT_LOGIN` | gera o hash da senha do root no build; não vai para a placa | —                 | GPL-2.0+                                                |
+| Pacote (símbolo)                                                                                 | Selecionado por                | Para quê                                                                     | Tamanho no rootfs | Licença                                                  |
+|--------------------------------------------------------------------------------------------------|--------------------------------|------------------------------------------------------------------------------|------------------:|----------------------------------------------------------|
+| `containerd` (`BR2_PACKAGE_CONTAINERD`)                                                          | `docker-engine`                | gerencia o ciclo de vida dos containers                                      | 69 921 736 B      | Apache-2.0                                               |
+| `runc` (`BR2_PACKAGE_RUNC`)                                                                      | `containerd`                   | cria os containers (namespaces, cgroups)                                     | 10 772 000 B      | Apache-2.0, LGPL-2.1 (libseccomp)                        |
+| `iptables` (`BR2_PACKAGE_IPTABLES`)                                                              | `docker-engine`                | regras de NAT da porta publicada e da rede `bizas-net`                       | 1 350 192 B       | GPL-2.0                                                  |
+| `libseccomp` (`BR2_PACKAGE_LIBSECCOMP`)                                                          | `docker-engine`                | filtros seccomp dos containers                                               | 183 848 B         | LGPL-2.1                                                 |
+| `cgroupfs-v2-mount` (`BR2_PACKAGE_CGROUPFS_V2_MOUNT`)                                            | `docker-engine`, sem systemd   | o `S30cgroupfs2`, que monta o cgroup v2 em `/sys/fs/cgroup`                  | 615 B             | não declarada no pacote                                  |
+| `util-linux` (`BR2_PACKAGE_UTIL_LINUX`, com `_BINARIES`, `_MOUNT`, `_MOUNTPOINT`, `_PIVOT_ROOT`) | `containerd`                   | `mount`, `mountpoint` e `pivot_root` completos                               | 5 518 760 B       | GPL-2.0+, BSD-4-Clause, LGPL-2.1+ e outras (capítulo 10) |
+| `host-go` (`BR2_PACKAGE_HOST_GO`)                                                                | `docker-engine`, `docker-cli`  | compila o Docker no host (Go 1.26.3); não vai para a placa                   | —                 | BSD-3-Clause                                             |
+| `host-mkpasswd` (`BR2_PACKAGE_HOST_MKPASSWD`)                                                    | `BR2_TARGET_ENABLE_ROOT_LOGIN` | gera os hashes das senhas do root e do `anon` no build; não vai para a placa | —                 | GPL-2.0+                                                 |
 
 A pilha do Docker (`docker-engine`, `containerd`, `docker-cli` e `runc`) soma 174 355 067 bytes, cerca de
 80% do rootfs.

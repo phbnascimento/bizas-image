@@ -1,10 +1,10 @@
-# 5. Licenças e versões
+# 10. Licenças e versões
 
 Este capítulo lista o software que vai para a placa e o que só é usado para gerá-la, com versão, licença e
 fonte. A parte do Buildroot vem do `make legal-info`; o resto foi conferido nos arquivos do repositório e
 no registro de origem de cada componente.
 
-## 5.1 Como o manifesto é gerado
+## 10.1 Como o manifesto é gerado
 
 ```sh
 make -C buildroot O="$PWD/output/buildroot" legal-info
@@ -25,12 +25,12 @@ O `legal-info` registra estes avisos, que valem para a imagem atual:
 - o código-fonte do próprio Buildroot não é salvo; ele é o tarball `buildroot-2026.05.1.tar.gz`, conferido
   pelo `scripts/fetch-buildroot.sh`;
 - a licença do toolchain da Bootlin não é salva (o pacote do Buildroot não define os arquivos de licença);
-  ela está no `summary.csv` do próprio toolchain (seção 5.2);
+  ela está no `summary.csv` do próprio toolchain (seção 10.2);
 - no kernel, o `legal-info` não acha hash conhecido para `COPYING` e para os arquivos de
   `LICENSES/` e reporta `ERROR: No hash found`. Os arquivos são copiados mesmo assim para
   `licenses/linux-custom/`, e o comando termina com sucesso.
 
-## 5.2 Software na placa, do Buildroot
+## 10.2 Software na placa, do Buildroot
 
 `manifest.csv`, pacotes do rootfs e da partição de boot:
 
@@ -55,7 +55,7 @@ O `legal-info` declara a licença do toolchain como `unknown`. Os valores da tab
 o `README.txt` ao lado aponta os fontes e os textos de licença em `toolchains.bootlin.com/downloads/releases/`.
 No rootfs, os arquivos do toolchain (bibliotecas de runtime) somam 5 638 516 bytes, pelo `graph-size`.
 
-## 5.3 Software na placa, da aplicação
+## 10.3 Software na placa, da aplicação
 
 Os containers `bizas-validator:0.4a` e `bizas-server:0.4a` são `FROM scratch`: cada um tem só o binário
 `/app`, compilado estaticamente (`CGO_ENABLED=0`). Dentro deles vão:
@@ -63,7 +63,7 @@ Os containers `bizas-validator:0.4a` e `bizas-server:0.4a` são `FROM scratch`: 
 | Componente                                       | Versão    | Licença      | Fonte                                                    | Integridade                                                       |
 |--------------------------------------------------|-----------|--------------|----------------------------------------------------------|-------------------------------------------------------------------|
 | Código do Bizas                                  | 0.4a      | —            | este repositório (`application/`)                        | SHA-256 dos tars em `evidence/hashes-containers.txt`              |
-| Biblioteca padrão do Go (compilada nos binários) | Go 1.27.3 | BSD-3-Clause | imagem `golang:1.27.3-alpine`                            | imagem fixada por digest (5.4)                                    |
+| Biblioteca padrão do Go (compilada nos binários) | Go 1.27.3 | BSD-3-Clause | imagem `golang:1.27.3-alpine`                            | imagem fixada por digest (10.4)                                   |
 | `github.com/coder/websocket` (só no server)      | v1.8.15   | ISC          | `application/vendor/`, declarado em `application/go.mod` | `application/go.sum`                                              |
 | `tweetnacl-js`, `nacl-fast.min.js` (página)      | 1.0.3     | Unlicense    | registro do npm, pacote `tweetnacl`                      | SHA-256 `3ec535c0…a5131` em `application/server/tweetnacl.sha256` |
 | `qrcode-generator`, `qrcode.js` (página)         | 1.4.4     | MIT          | registro do npm, pacote `qrcode-generator`               | SHA-256 `18ae399f…f1780` em `application/server/qrcode.sha256`    |
@@ -80,7 +80,7 @@ Os containers `bizas-validator:0.4a` e `bizas-server:0.4a` são `FROM scratch`: 
   (`registry.npmjs.org/tweetnacl/1.0.3` e `registry.npmjs.org/qrcode-generator/1.4.4`). O cabeçalho do
   `qrcode.js` também declara a licença MIT.
 
-## 5.4 Usado só no build
+## 10.4 Usado só no build
 
 Nada desta tabela vai para a placa.
 
@@ -93,13 +93,13 @@ Nada desta tabela vai para a placa.
 | `e2fsprogs`                        | 1.47.4                                                                                                            | GPL-2.0, MIT-like (libss e libet) | gera o ext4 e fornece o `debugfs` do `check-image.sh`                   |
 | `mtools`                           | 4.0.48                                                                                                            | GPL-3.0+                          | monta a partição vfat e é usado pelo `check-image.sh`                   |
 | `dosfstools`                       | 4.2                                                                                                               | GPL-3.0+                          | gera a partição vfat                                                    |
-| `mkpasswd`                         | do Buildroot 2026.05.1                                                                                            | GPL-2.0+                          | gera o hash da senha do root                                            |
+| `mkpasswd`                         | do Buildroot 2026.05.1                                                                                            | GPL-2.0+                          | gera os hashes das senhas do root e do `anon`                           |
 
 O `host-manifest.csv` lista 45 pacotes de host ao todo; os da tabela são os que produzem ou conferem os
 artefatos. Na máquina de build também são usados o Docker Engine e o Buildx (para gerar as imagens dos
 containers) e, só nos testes, o Deno, o Firefox e o `zbarimg`. Nenhum deles vai para a imagem.
 
-## 5.5 Versões fixadas
+## 10.5 Versões fixadas
 
 | O quê                                                       | Onde está fixado                                                                                               |
 |-------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------|

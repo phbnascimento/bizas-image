@@ -126,7 +126,7 @@ O que cada passo faz e confere:
    `output/buildroot/images/sdcard.img`, comprime em `output/images/bizas-rpi4.img.xz` (`xz -T0 -6`) e
    grava o SHA-256 dos dois em `evidence/hashes-image.txt`.
 5. **`check-image.sh`** lê o rootfs com `debugfs` e a partição de boot com `mtools`, sem montar nada, e
-   confere o conteúdo contra o repositório (capítulo 6).
+   confere o conteúdo contra o repositório (capítulo 8).
 
 O SHA-256 que acompanha a imagem entregue é a linha `bizas-rpi4.img.xz` de `evidence/hashes-image.txt`,
 escrita pelo `build-image.sh`. Para conferir uma cópia baixada:
