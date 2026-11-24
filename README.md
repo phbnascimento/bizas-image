@@ -298,9 +298,10 @@ Em termos técnicos, é um **soft fork**, pois a extensão só acrescenta regras
 repetido, por exemplo, passa no `validator verify` da versão 0.3 (`valid: 17 blocks`) e é recusada pelo atual
 (`INVALID: DUPLICATE_VOTE at block 16 (of 17)`).
 
-- **Criar:** o botão "+", à esquerda da barra de mensagem, abre um menu que por enquanto só tem "Poll". Ele abre o
-  painel lateral com a pergunta, de 2 a 10 opções e a caixa "One choice per person", que torna as opções mutuamente
-  exclusivas. A enquete vai num bloco `POLL`: a pergunta e as opções no `data`, e a exclusividade no bit 0 do `info`.
+- **Criar:** o botão "+", à esquerda da barra de mensagem, abre um menu que por enquanto só tem "📊 Create New Poll"
+  ("📊 Criar Nova Enquete", em português). Ele abre o painel lateral com a pergunta, de 2 a 10 opções e a caixa "One
+  choice per person", que torna as opções mutuamente exclusivas. A enquete vai num bloco `POLL`: a pergunta e as
+  opções no `data`, e a exclusividade no bit 0 do `info`.
 - **Votar:** a enquete aparece como uma mensagem, com uma barra por opção, a porcentagem e o número de votos ao lado.
   Clicar numa opção vota, e clicar de novo retira o voto. Cada voto é um bloco `VOTE`, com o índice do bloco da enquete
   no `info`, e aparece como uma linha: "`1d060702` voted for “Pizza” in the poll at block 6 · “Where shall we eat?”".

@@ -364,7 +364,7 @@ if (pt.status !== "conectado" || pt.room !== "sala" || pt.send !== "Enviar" || p
 if (!pt.whens.every((w: string) => SET_DATE_CMD ? w.includes("2030") : w === "agora mesmo")) throw new Error(`times not translated: ${pt.whens}`);
 if (await text(A, "footer a") !== "Baixar a chain") throw new Error("pt footer link");
 if (await footer() !== "Sua chave privada nunca sai deste navegador :) • Baixar a chain • em JSON") throw new Error(`pt footer: ${await footer()}`);
-if (await text(A, "header .info:nth-of-type(4) span") !== "footprint") throw new Error("pt footprint label");
+if (await text(A, "header .info:nth-of-type(4) span") !== "fingerprint") throw new Error("pt fingerprint label");
 await ev(A, `document.querySelector(".msg .who").click()`);
 const ptLabels = await ev(A, `[...document.querySelectorAll("#panel label")].map(l => l.textContent).join("|")`);
 if (ptLabels !== "Nome|Cor|Nota (visível só para você)") throw new Error(`pt panel labels: ${ptLabels}`);
@@ -687,7 +687,7 @@ const base = await msgs(A);
 if (await ev(A, `document.getElementById("plus").disabled`) !== false) throw new Error("the + button is disabled");
 await click(A, "#plus");
 const menu = await ev(A, `JSON.stringify({ hidden: document.getElementById("plus-menu").hidden, items: [...document.querySelectorAll("#plus-menu button")].map(b => b.textContent) })`);
-if (menu !== JSON.stringify({ hidden: false, items: ["Poll"] })) throw new Error(`+ menu: ${menu}`);
+if (menu !== JSON.stringify({ hidden: false, items: ["📊 Create New Poll"] })) throw new Error(`+ menu: ${menu}`);
 await click(A, "#menu-poll");
 if (await ev(A, `document.getElementById("poll-panel").hidden || !document.getElementById("plus-menu").hidden || !document.getElementById("panel").hidden || !document.getElementById("settings").hidden`) !== false) throw new Error("the poll panel did not open alone");
 if (await ev(A, `document.getElementById("poll-create").disabled`) !== true) throw new Error("an empty poll can be created");
