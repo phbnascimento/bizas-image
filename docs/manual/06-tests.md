@@ -2,7 +2,7 @@
 
 Este capítulo lista os testes automáticos do projeto: o que cada um confere, como rodá-lo e o resultado
 obtido. As saídas citadas são
-da execução de 23/11/2026 na máquina de referência do capítulo 2, com o código da versão 0.4.
+da execução de 23/11/2026 na máquina de referência do capítulo 2, com o código da versão 0.4a.
 
 Uma conferência só merece confiança depois de ser **sabotada**, ou seja, depois de se ver que ela reprova
 quando o que ela confere está errado. A seção 6.9 lista as sabotagens feitas.
@@ -53,11 +53,11 @@ Trecho da saída do `scripts/e2e/browser.sh`, com N = 4 escolhido no gênese:
 == page at http://192.168.15.12:15000
 device clocks: A -3 h, B +2 h
 isSecureContext=false on both devices
-zero bits per block: 6 5 4 6
+zero bits per block: 9 5 6 8
 block panel: fields of block 1 match /chain.json
 A: [ "Hello from A", "<b>hi</b> from B", "race A", "race B" ]
 B: [ "Hello from A", "<b>hi</b> from B", "race A", "race B" ]
-fingerprint A: 03660f16b881945f B: 03660f16b881945f
+fingerprint A: 00949bb5314d1b86 B: 00949bb5314d1b86
 fraud: stamp before the previous block -> Rejected: NO_TIMESTAMP_CONTINUITY
 fraud: another room (text) -> Rejected: INVALID_ROOM
 fraud: wrong prev -> Rejected: NO_HASH_CONTINUITY
@@ -74,8 +74,8 @@ fraud: duplicate vote -> Rejected: DUPLICATE_VOTE
 polls: [["Pizza","0 · 0%",false],["<b>Sushi</b>","1 · 100%",true],["Tacos","0 · 0%",false]] [["Red","1 · 50%",true],["Green","1 · 50%",true]]
 == validator verify (exported chain, 7680 bytes)
 valid: 15 blocks
-fingerprint: #15 06c785d2e6b2c5d8
-== fingerprint: page '#15 06c785d2e6b2c5d8', exported chain '#15 06c785d2e6b2c5d8'
+fingerprint: #15 01b861262170682e
+== fingerprint: page '#15 01b861262170682e', exported chain '#15 01b861262170682e'
 == validator verify (byte 1224 sabotaged)
 INVALID: FRAUD at block 2 (of 15)
 E2E PASSED

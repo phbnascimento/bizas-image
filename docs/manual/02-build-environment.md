@@ -72,7 +72,7 @@ Notas:
 
 ## 2.3 Espaço em disco
 
-Medido com `du -s --block-size=1M` na árvore de trabalho que gerou a imagem 0.4, com o `make legal-info` já
+Medido com `du -s --block-size=1M` na árvore de trabalho que gerou a imagem 0.4a, com o `make legal-info` já
 executado:
 
 | Diretório                            | Conteúdo                                               | Tamanho    |
@@ -86,7 +86,7 @@ executado:
 | `output/buildroot/images/`           | `sdcard.img`, `rootfs.ext4`, `boot.vfat`, kernel, DTBs | 578 MiB    |
 | `output/buildroot/target/`           | rootfs antes de ser empacotado                         | 215 MiB    |
 | `output/images/`                     | `bizas-rpi4.img.xz`                                    | 79 MiB     |
-| `output/containers/`                 | tars `docker save` (0.1 a 0.4, arm64 e amd64)          | 48 MiB     |
+| `output/containers/`                 | tars `docker save` (0.1 a 0.4a, arm64 e amd64)         | 60 MiB     |
 
 Somando, a árvore de trabalho com o build completo ocupa cerca de 13 GiB (não cabe num `/tmp` em tmpfs pequeno), além da imagem `golang` no cache do
 Docker (376 MB, pelo `docker images`). Sem o `legal-info`, que é opcional, a saída do Buildroot fica cerca
@@ -116,7 +116,7 @@ O que cada passo faz e confere:
    `.config` cada opção pedida (o kconfig descarta em silêncio uma opção com dependência não satisfeita),
    grava o `bizas_rpi4_defconfig` e faz a ida e volta: recarrega o defconfig do zero e exige o mesmo
    resultado. Não compila nem baixa nada.
-3. **`containers-build.sh arm64`** gera `bizas-validator:0.4` e `bizas-server:0.4`, exporta cada uma com
+3. **`containers-build.sh arm64`** gera `bizas-validator:0.4a` e `bizas-server:0.4a`, exporta cada uma com
    `docker save` em `output/containers/arm64/`, confere dentro do tar a arquitetura declarada e a do binário
    `/app` (cabeçalho ELF), e grava o SHA-256 dos tars em `evidence/hashes-containers.txt`.
 4. **`build-image.sh`** carrega o `bizas_rpi4_defconfig` e compila. O primeiro build baixa o toolchain, o
@@ -141,7 +141,7 @@ SHA-256, só com outro nome (a linha `sdcard.img` de `evidence/hashes-image.txt`
 O hash identifica o artefato entregue. Ele não serve para comparar dois builds do mesmo código, porque os
 sistemas de arquivos gerados guardam datas do momento do build.
 
-Tamanhos do último build: `sdcard.img` com 1 107 296 768 bytes e `bizas-rpi4.img.xz` com 81 845 108 bytes.
+Tamanhos do último build: `sdcard.img` com 1 107 296 768 bytes e `bizas-rpi4.img.xz` com 81 842 548 bytes.
 
 ## 2.5 Limpeza e reconstrução
 
@@ -160,7 +160,7 @@ ao lado dos novos.
 
 ## 2.6 Mudança de versão dos containers
 
-A versão das imagens fica só em `docker/version.env` (`VERSION=0.4`), no esquema `MAJOR.MINOR` com uma
+A versão das imagens fica só em `docker/version.env` (`VERSION=0.4a`), no esquema `MAJOR.MINOR` com uma
 letra opcional para patch (`0.3a`, `0.3b`…). Ao mudar a versão ou o código da aplicação, a sequência é
 `containers-build.sh arm64`, `build-image.sh` e `check-image.sh`: os hashes de `evidence/` são reescritos
 pelos scripts, nunca à mão.
