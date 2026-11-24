@@ -8,6 +8,7 @@
 #   EXTERNAL_PORT=<porta>  não sobe os binários: testa o server que já responde
 #                          em http://<ip-da-lan>:<porta> (ex.: os containers)
 #   LOG_VALIDATOR="<cmd>"  comando que mostra o log do validator nesse caso
+#   E2E_CHAIN_OUT=<arquivo> guarda uma cópia da cadeia exportada
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -63,6 +64,8 @@ echo "== validator log"; ${LOG_VALIDATOR:-true}
 [ "$RC" -eq 0 ] || { echo "FAILED: browser test (rc=$RC)" >&2; exit 1; }
 
 curl -sf "$BASE/chain" -o "$TMP/chain.bin"
+# E2E_CHAIN_OUT=<arquivo> guarda uma cópia da cadeia exportada (para conferi-la com outro binário, por exemplo)
+if [ -n "${E2E_CHAIN_OUT:-}" ]; then cp "$TMP/chain.bin" "$E2E_CHAIN_OUT"; fi
 echo "== validator verify (exported chain, $(stat -c %s "$TMP/chain.bin") bytes)"
 "$TMP/validator" verify "$TMP/chain.bin"
 

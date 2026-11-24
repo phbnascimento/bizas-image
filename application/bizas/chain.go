@@ -57,6 +57,7 @@ type Chain struct {
 	mu     sync.Mutex
 	blocks []Block
 	file   *os.File // nil: só em memória
+	tally  *Tally   // enquetes e votos ativos (poll.go), refeito na partida
 
 	// Relógio efetivo: base + tempo decorrido desde start. A base é max(relógio da placa, carimbo da cabeça) na
 	// partida, então depois de um reboot com o relógio atrasado (sem RTC e sem internet, por exemplo) as mensagens
@@ -130,7 +131,11 @@ func openChain(path string, log *slog.Logger, clock func() time.Time) (*Chain, e
 		blocks = blocks[:idx]
 	}
 
-	c := &Chain{blocks: blocks, file: f, clock: clock}
+	c := &Chain{blocks: blocks, file: f, clock: clock, tally: NewTally()}
+	// Os blocos que ficaram já passaram pelo VerifyChain, enquetes inclusive: só falta refazer o estado
+	for i := range c.blocks {
+		c.tally.Apply(i, &c.blocks[i])
+	}
 	c.initClock()
 	return c, nil
 }
@@ -256,6 +261,9 @@ func (c *Chain) Append(b Block) (ValidationError, *Block, error) {
 			return err, head, nil
 		}
 	}
+	if err := c.tally.Check(len(c.blocks), &b); err != None {
+		return err, head, nil
+	}
 	if b.Stamp > c.now()+int64(MaxFutureSkew) {
 		return TimestampInFuture, head, nil
 	}
@@ -272,6 +280,8 @@ func (c *Chain) Append(b Block) (ValidationError, *Block, error) {
 			return None, head, fmt.Errorf("%w: %v", ErrStorage, err)
 		}
 	}
+	// O voto só conta depois de gravado: com falha de escrita, o estado das enquetes também não muda
+	c.tally.Apply(len(c.blocks), &b)
 	c.blocks = append(c.blocks, b)
 	return None, nil, nil
 }

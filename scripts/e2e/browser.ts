@@ -15,7 +15,9 @@ async function ev(ctx: string, expr: string) {
   if (r.type === "exception") throw new Error(`exception in the page: ${JSON.stringify(r.exceptionDetails.text)}`);
   return r.result.value;
 }
-async function until(ctx: string, expr: string, what: string, ms = 5000) {
+// O prazo cobre a prova de trabalho: o número de tentativas varia com o nonce inicial (aleatório), e em algumas
+// execuções a mineração de um envio passou de 5 s
+async function until(ctx: string, expr: string, what: string, ms = 20000) {
   const t0 = Date.now();
   while (Date.now() - t0 < ms) { if (await ev(ctx, expr)) return; await sleep(100); }
   throw new Error(`timed out waiting for: ${what}`);
@@ -189,8 +191,8 @@ if (await ev(A, `document.querySelectorAll(".msg .text b").length`) !== 0) throw
 
 // Corrida: os dois enviam ao mesmo tempo sobre a mesma cabeça; o reenvio automático tem de resolver
 await Promise.all([send(A, "race A"), send(B, "race B")]);
-await until(A, `document.querySelectorAll(".msg").length === 4`, "A to see all 4", 8000);
-await until(B, `document.querySelectorAll(".msg").length === 4`, "B to see all 4", 8000);
+await until(A, `document.querySelectorAll(".msg").length === 4`, "A to see all 4", 40000);
+await until(B, `document.querySelectorAll(".msg").length === 4`, "B to see all 4", 40000);
 // Toda assinatura começa com WORK bits zero, e o info do gênese é WORK (o validator verify, no fim, confere de novo)
 const blocksJson = JSON.parse(await ev(A, `fetch("/chain.json").then(r => r.text())`));
 const zeroBits = (sigHex: string) => { let n = 0; for (const ch of sigHex) { const v = parseInt(ch, 16); if (v) return n + Math.clz32(v) - 28; n += 4; } return n; };
@@ -655,6 +657,110 @@ await typeMsg("");
 // Mensagem acima de 320 bytes UTF-8: botão desabilitado
 await ev(A, `(() => { const t = document.getElementById("text"); t.removeAttribute("maxlength"); t.value = "é".repeat(161); t.dispatchEvent(new Event("input")); })()`);
 if (!(await ev(A, `document.getElementById("send").disabled`))) throw new Error("accepted 322 bytes");
+await typeMsg("");
+
+// Enquetes (extensão POLL/VOTE): o "+" abre o menu, que por enquanto só tem a enquete; ela abre o painel lateral de
+// criação. A enquete aparece como uma mensagem, uma barra por opção com o número e a porcentagem; cada voto aparece
+// como uma linha. Numa enquete exclusiva, trocar de opção custa dois blocos (retirar e votar); ninguém vota duas vezes
+// na mesma opção
+const msgs = (ctx: string) => ev(ctx, `document.querySelectorAll(".msg").length`);
+const click = (ctx: string, sel: string) => ev(ctx, `document.querySelector(${JSON.stringify(sel)}).click()`);
+const pollRows = (ctx: string, index: number) => ev(ctx, `JSON.stringify([...document.querySelectorAll('.msg[data-index="${index}"] .opt')].map(b => [b.querySelector(".oname").textContent, b.querySelector(".onum").textContent, b.classList.contains("voted")]))`).then(JSON.parse);
+const lastVote = (ctx: string) => ev(ctx, `(() => { const m = [...document.querySelectorAll(".msg.vote-msg")].at(-1); return m.querySelector(".who").textContent + " " + m.querySelector(".vote").textContent; })()`);
+const setInput = (ctx: string, sel: string, v: string) => ev(ctx, `(() => { const i = document.querySelector(${JSON.stringify(sel)}); i.value = ${JSON.stringify(v)}; i.dispatchEvent(new Event("input")); })()`);
+const base = await msgs(A);
+if (await ev(A, `document.getElementById("plus").disabled`) !== false) throw new Error("the + button is disabled");
+await click(A, "#plus");
+const menu = await ev(A, `JSON.stringify({ hidden: document.getElementById("plus-menu").hidden, items: [...document.querySelectorAll("#plus-menu button")].map(b => b.textContent) })`);
+if (menu !== JSON.stringify({ hidden: false, items: ["Poll"] })) throw new Error(`+ menu: ${menu}`);
+await click(A, "#menu-poll");
+if (await ev(A, `document.getElementById("poll-panel").hidden || !document.getElementById("plus-menu").hidden || !document.getElementById("panel").hidden || !document.getElementById("settings").hidden`) !== false) throw new Error("the poll panel did not open alone");
+if (await ev(A, `document.getElementById("poll-create").disabled`) !== true) throw new Error("an empty poll can be created");
+await setInput(A, "#poll-question", "Where shall we eat?");
+await setInput(A, ".orow:nth-child(1) input", "Pizza");
+await setInput(A, ".orow:nth-child(2) input", "Pizza");
+if (await text(A, "#poll-err") !== "Two options are the same" || await ev(A, `document.getElementById("poll-create").disabled`) !== true) throw new Error("duplicate options were not refused");
+await setInput(A, ".orow:nth-child(2) input", "<b>Sushi</b>");
+await click(A, "#poll-add");
+await setInput(A, ".orow:nth-child(3) input", "Tacos");
+await click(A, "#poll-exclusive");
+await click(A, "#poll-create");
+await until(A, `document.querySelectorAll(".msg").length === ${base + 1}`, "the poll on A");
+await until(B, `document.querySelectorAll(".msg").length === ${base + 1}`, "the poll on B");
+const POLL = base; // índice do bloco da enquete (a partir de 0): a cadeia tem um bloco por mensagem
+if (await ev(A, `document.getElementById("poll-panel").hidden`) !== true) throw new Error("the poll panel stayed open after creating the poll");
+const label = await text(B, `.msg[data-index="${POLL}"] .plabel`);
+if (label !== `Poll · block ${POLL}` || await text(B, `.msg[data-index="${POLL}"] .q`) !== "Where shall we eat?") throw new Error(`poll card: ${label}`);
+if (await ev(B, `document.querySelector('.msg[data-index="${POLL}"] .opt .oname b') !== null`) !== false) throw new Error("an option was inserted as HTML");
+const want = (rows: [string, string, boolean][]) => JSON.stringify(rows);
+if (JSON.stringify(await pollRows(B, POLL)) !== want([["Pizza", "0 · 0%", false], ["<b>Sushi</b>", "0 · 0%", false], ["Tacos", "0 · 0%", false]])) throw new Error(`empty poll: ${JSON.stringify(await pollRows(B, POLL))}`);
+// B vota em Pizza; A vê a barra e a linha do voto
+await click(B, `.msg[data-index="${POLL}"] .opt[data-opt="0"]`);
+await until(A, `document.querySelectorAll(".msg").length === ${base + 2}`, "B's vote on A");
+const voteText = await lastVote(A);
+if (voteText !== `${idB} voted for “Pizza” in the poll at block ${POLL} · “Where shall we eat?”`) throw new Error(`vote line: ${voteText}`);
+console.log("poll vote line:", voteText);
+await click(A, `.msg[data-index="${POLL}"] .opt[data-opt="1"]`);
+await until(B, `document.querySelectorAll(".msg").length === ${base + 3}`, "A's vote on B");
+if (JSON.stringify(await pollRows(B, POLL)) !== want([["Pizza", "1 · 50%", true], ["<b>Sushi</b>", "1 · 50%", false], ["Tacos", "0 · 0%", false]])) throw new Error(`poll after two votes: ${JSON.stringify(await pollRows(B, POLL))}`);
+const fillW = await ev(B, `document.querySelector('.msg[data-index="${POLL}"] .opt[data-opt="0"] .fill').style.width`);
+if (fillW !== "50%") throw new Error(`progress bar width: ${fillW}`);
+// Exclusiva: B troca para Tacos, que são dois blocos (retira Pizza e vota em Tacos)
+await click(B, `.msg[data-index="${POLL}"] .opt[data-opt="2"]`);
+await until(A, `document.querySelectorAll(".msg").length === ${base + 5}`, "B's switch (two blocks) on A", 40000);
+const switchLines = await ev(A, `JSON.stringify([...document.querySelectorAll(".msg.vote-msg .vote")].slice(-2).map(e => e.textContent))`);
+if (switchLines !== JSON.stringify([`withdrew their vote for “Pizza” in the poll at block ${POLL} · “Where shall we eat?”`, `voted for “Tacos” in the poll at block ${POLL} · “Where shall we eat?”`])) throw new Error(`switch: ${switchLines}`);
+if (JSON.stringify(await pollRows(B, POLL)) !== want([["Pizza", "0 · 0%", false], ["<b>Sushi</b>", "1 · 50%", false], ["Tacos", "1 · 50%", true]])) throw new Error(`poll after the switch: ${JSON.stringify(await pollRows(B, POLL))}`);
+// Clicar de novo na opção votada retira o voto
+await click(B, `.msg[data-index="${POLL}"] .opt[data-opt="2"]`);
+await until(A, `document.querySelectorAll(".msg").length === ${base + 6}`, "B's withdrawal on A");
+if (JSON.stringify(await pollRows(A, POLL)) !== want([["Pizza", "0 · 0%", false], ["<b>Sushi</b>", "1 · 100%", true], ["Tacos", "0 · 0%", false]])) throw new Error(`poll after the withdrawal: ${JSON.stringify(await pollRows(A, POLL))}`);
+// Não exclusiva: a mesma pessoa vota em várias opções
+await click(B, "#plus");
+await click(B, "#menu-poll");
+await setInput(B, "#poll-question", "Colors?");
+await setInput(B, ".orow:nth-child(1) input", "Red");
+await setInput(B, ".orow:nth-child(2) input", "Green");
+await click(B, "#poll-create");
+await until(A, `document.querySelectorAll(".msg").length === ${base + 7}`, "the second poll on A");
+const POLL2 = base + 6;
+if (await text(A, `.msg[data-index="${POLL2}"] .pfoot`) !== "several choices per person · 0 votes") throw new Error(`second poll footer: ${await text(A, `.msg[data-index="${POLL2}"] .pfoot`)}`);
+await click(A, `.msg[data-index="${POLL2}"] .opt[data-opt="0"]`);
+await until(A, `document.querySelectorAll(".msg").length === ${base + 8}`, "A's first vote");
+await click(A, `.msg[data-index="${POLL2}"] .opt[data-opt="1"]`);
+await until(B, `document.querySelectorAll(".msg").length === ${base + 9}`, "A's second vote on B");
+if (JSON.stringify(await pollRows(A, POLL2)) !== want([["Red", "1 · 50%", true], ["Green", "1 · 50%", true]])) throw new Error(`second poll: ${JSON.stringify(await pollRows(A, POLL2))}`);
+// O link da linha do voto leva à enquete
+await ev(A, `[...document.querySelectorAll(".msg.vote-msg .goto")].at(-1).click()`);
+if (await ev(A, `document.querySelector('.msg[data-index="${POLL2}"]').classList.contains("flash")`) !== true) throw new Error("the vote link did not lead to the poll");
+// Em português
+await openSettings(A, "header");
+await ev(A, `document.querySelector("#settings [data-lang='pt']").click()`);
+const ptVote = await ev(A, `[...document.querySelectorAll(".msg.vote-msg .vote")].at(-1).textContent`);
+const ptLabel = await text(A, `.msg[data-index="${POLL}"] .plabel`);
+await ev(A, `document.querySelector("#settings [data-lang='en']").click()`);
+await ev(A, `document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }))`);
+if (ptVote !== `votou em “Green” na enquete do bloco ${POLL2} · “Colors?”` || ptLabel !== `Enquete · bloco ${POLL}`) throw new Error(`poll in Portuguese: ${ptVote} | ${ptLabel}`);
+// Fraude: um voto repetido montado à mão no teste de fraude (type 8, info = a enquete, data = opção 0 e ação 1) é
+// recusado pelo validator, e a cadeia não muda
+await openSettings(A, "header");
+await ev(A, `document.getElementById("fraud-toggle").click()`);
+await ev(A, `document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }))`);
+await resetFields();
+await setField("type", "8");
+await setField("info", String(POLL2));
+await typeMsg("\u0000\u0001");
+if (await field("length") !== "2") throw new Error(`vote length in the fraud test: ${await field("length")}`);
+await ev(A, `document.getElementById("send").click()`);
+await until(A, `/^(Rejected|Accepted|Error)/.test(document.getElementById("fraud-result").textContent)`, "the duplicate vote answer");
+const dupVote = await result();
+if (dupVote !== "Rejected: DUPLICATE_VOTE" || await msgs(A) !== base + 9) throw new Error(`duplicate vote: ${dupVote}`);
+console.log(`fraud: duplicate vote -> ${dupVote}`);
+await openSettings(A, "header");
+await ev(A, `document.getElementById("fraud-toggle").click()`);
+await ev(A, `document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }))`);
+await typeMsg("");
+console.log("polls:", JSON.stringify(await pollRows(A, POLL)), JSON.stringify(await pollRows(A, POLL2)));
 console.log("height A:", await ev(A, `document.getElementById("height").textContent`));
 // A cadeia ganhou um bloco no teste de fraude: a impressão digital final é a da cabeça atual, que o script confere com
 // a da cadeia exportada

@@ -18,7 +18,7 @@ var update = flag.Bool("update", false, "rewrite testdata/vector.txt")
 
 const vectorPath = "testdata/vector.txt"
 
-var vectorKeys = []string{"size", "pub", "genesis", "block1", "verify", "clz", "fingerprint"}
+var vectorKeys = []string{"size", "pub", "genesis", "block1", "verify", "clz", "fingerprint", "poll", "vote", "case"}
 
 func loadVector(t *testing.T) map[string]string {
 	t.Helper()
@@ -111,7 +111,119 @@ func vectorFor(t *testing.T) string {
 		t.Fatal(err)
 	}
 	fmt.Fprintf(&sb, "fingerprint=%s\n", fp)
+
+	// Enquetes: a cadeia do vetor segue com uma enquete exclusiva (bloco 2) e um voto na opção 1 (bloco 3), e cada caso
+	// é um bloco no índice dado, conferido contra a cadeia até ali, com o código que o Go devolve
+	polls := pollChain(t)
+	verr, idx = ChainVerify(polls)
+	fmt.Fprintf(&sb, "poll=%s\n", hex.EncodeToString(polls[2].MarshalBinary()))
+	fmt.Fprintf(&sb, "vote=%s\n", hex.EncodeToString(polls[3].MarshalBinary()))
+	fmt.Fprintf(&sb, "pollverify=%v,%d\n", verr, idx)
+	fmt.Fprintf(&sb, "counts=%s\n", strings.Trim(fmt.Sprint(tallyOf(polls).Counts(2)), "[]"))
+	for _, c := range pollCases(t, polls) {
+		tally := tallyOf(polls[:c.index])
+		got := tally.Check(c.index, &c.block)
+		if got != c.want {
+			t.Errorf("poll case %s: Check = %v, want %v", c.name, got, c.want)
+		}
+		fmt.Fprintf(&sb, "case=%s,%d,%v,%s\n", c.name, c.index, got, hex.EncodeToString(c.block.MarshalBinary()))
+	}
 	return sb.String()
+}
+
+const testPollQuestion = "Where shall we eat?"
+
+var testPollOptions = []string{"Pizza", "Sushi", "<b>Tacos</b>"}
+
+// pollChain é a cadeia do vetor com mais dois blocos minerados: a enquete exclusiva e o voto do mesmo autor na opção 1
+func pollChain(t *testing.T) []Block {
+	t.Helper()
+	key := testKey(t)
+	chain := testChain(t)
+	p := NextBlock(chain)
+	p.Stamp = 1_763_490_002_000_000_000
+	p.Nonce = 1000
+	if err := p.UploadPoll(testPollQuestion, testPollOptions, true); err != nil {
+		t.Fatal(err)
+	}
+	p.Mine(key, testWorkBits)
+	chain = append(chain, p)
+	v := NextBlock(chain)
+	v.Stamp = 1_763_490_003_000_000_000
+	v.Nonce = 2000
+	v.UploadVote(2, 1, true)
+	v.Mine(key, testWorkBits)
+	return append(chain, v)
+}
+
+func tallyOf(chain []Block) *Tally {
+	tally := NewTally()
+	for i := range chain {
+		tally.Apply(i, &chain[i])
+	}
+	return tally
+}
+
+type pollCase struct {
+	name  string
+	index int
+	want  ValidationError
+	block Block
+}
+
+// pollCases são os casos de aceite e recusa das enquetes que o JS também confere. Os blocos são assinados (sem
+// mineração): o Check não olha a assinatura, só o conteúdo e o estado
+func pollCases(t *testing.T, chain []Block) []pollCase {
+	t.Helper()
+	key := testKey(t)
+	other, err := GetPrivKey(bytes.Repeat([]byte{9}, 32))
+	if err != nil {
+		t.Fatal(err)
+	}
+	next := func(typ DataType, info uint32, data []byte, k PrivateKey) Block {
+		b := NextBlock(chain)
+		b.Stamp = 1_763_490_004_000_000_000
+		if err := b.UploadBytes(data, typ); err != nil {
+			t.Fatal(err)
+		}
+		b.Info = info
+		b.Sign(k)
+		return b
+	}
+	poll := func(parts ...string) []byte { return []byte(strings.Join(parts, "\x00")) }
+	eleven := []string{"Q"}
+	for i := range 11 {
+		eleven = append(eleven, fmt.Sprintf("o%d", i))
+	}
+	genesis := next(Poll, 0, poll("Q", "A", "B"), key)
+	genesis.Prev = Signature{}
+	n := len(chain)
+	return []pollCase{
+		{"poll_ok_several", n, None, next(Poll, 0, poll("Q", "A", "B"), key)},
+		{"poll_ten_options", n, None, next(Poll, 0, poll(eleven[:11]...), key)},
+		{"poll_eleven_options", n, InvalidPoll, next(Poll, 0, poll(eleven...), key)},
+		{"poll_one_option", n, InvalidPoll, next(Poll, 0, poll("Q", "A"), key)},
+		{"poll_trailing_separator", n, InvalidPoll, next(Poll, 0, append(poll("Q", "A", "B"), 0), key)},
+		{"poll_empty_question", n, InvalidPoll, next(Poll, 0, poll("", "A", "B"), key)},
+		{"poll_empty_option", n, InvalidPoll, next(Poll, 0, poll("Q", "A", "", "B"), key)},
+		{"poll_duplicate_option", n, InvalidPoll, next(Poll, 0, poll("Q", "A", "A"), key)},
+		{"poll_option_equal_to_question", n, None, next(Poll, 0, poll("A", "A", "B"), key)},
+		{"poll_invalid_utf8", n, InvalidPoll, next(Poll, 0, append(poll("Q", "A", "B"), 0xff), key)},
+		{"poll_unknown_flag", n, InvalidPoll, next(Poll, 2, poll("Q", "A", "B"), key)},
+		{"poll_genesis", 0, InvalidPoll, genesis},
+		{"vote_other_author", n, None, next(Vote, 2, []byte{0, VoteCast}, other)},
+		{"vote_revoke", n, None, next(Vote, 2, []byte{1, VoteRevoke}, key)},
+		{"vote_same_option_again", n, DuplicateVote, next(Vote, 2, []byte{1, VoteCast}, key)},
+		{"vote_exclusive_second_option", n, DuplicateVote, next(Vote, 2, []byte{0, VoteCast}, key)},
+		{"vote_revoke_without_vote", n, InvalidVote, next(Vote, 2, []byte{0, VoteRevoke}, key)},
+		{"vote_option_out_of_range", n, InvalidVote, next(Vote, 2, []byte{3, VoteCast}, other)},
+		{"vote_bad_action", n, InvalidVote, next(Vote, 2, []byte{0, 2}, other)},
+		{"vote_length_3", n, InvalidVote, next(Vote, 2, []byte{0, VoteCast, 0}, other)},
+		{"vote_length_1", n, InvalidVote, next(Vote, 2, []byte{0}, other)},
+		{"vote_not_a_poll", n, InvalidVote, next(Vote, 1, []byte{0, VoteCast}, other)},
+		{"vote_missing_block", n, InvalidVote, next(Vote, 99, []byte{0, VoteCast}, other)},
+		{"vote_on_itself", n, InvalidVote, next(Vote, uint32(n), []byte{0, VoteCast}, other)},
+	}
 }
 
 func TestVector(t *testing.T) {

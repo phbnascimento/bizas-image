@@ -13,7 +13,10 @@ export const DEFAULT_WORK_BITS = 10;
 const U64 = (1n << 64n) - 1n;
 
 export const DataType = Object.freeze({
-  TEXT: 0, MONO: 1, MONO_RLE: 2, COLORED: 3, COLORED_RLE: 4, NETWORK_ACTION: 5, OTHER: 6,
+  // Os valores 1 a 4 não são usados e ficam reservados
+  TEXT: 0, NETWORK_ACTION: 5, OTHER: 6,
+  // Extensão de enquetes (poll.js)
+  POLL: 7, VOTE: 8,
 });
 
 const OFF = Object.freeze({

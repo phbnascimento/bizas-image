@@ -20,18 +20,18 @@ navegador ──HTTP/WebSocket──▶ server :5000 ──HTTP interno──▶
 
 Cada mensagem é um bloco de **512 bytes**, com inteiros em little-endian:
 
-| offset | bytes | campo    | conteúdo                                                                                                |
-|-------:|------:|----------|---------------------------------------------------------------------------------------------------------|
-| 0      | 8     | `room`   | nome da sala, completado com zeros (padrão: `Bizas`)                                                    |
-| 8      | 8     | `stamp`  | `int64`, nanossegundos desde 1970-01-01 UTC, no relógio do validator (seção 3)                          |
-| 16     | 8     | `nonce`  | `uint64`, variado pela prova de trabalho até a assinatura ter os bits zero exigidos                     |
-| 24     | 4     | `info`   | `uint32`; no gênese, o N da prova de trabalho (0 a 20); nos outros blocos, livre (0)                    |
-| 28     | 2     | `type`   | `uint16`: 0 `TEXT`, 1 `MONO`, 2 `MONO_RLE`, 3 `COLORED`, 4 `COLORED_RLE`, 5 `NETWORK_ACTION`, 6 `OTHER` |
-| 30     | 2     | `length` | `int16`, bytes usados de `data` (0 a 320)                                                               |
-| 32     | 32    | `author` | chave pública Ed25519 de quem assinou                                                                   |
-| 64     | 64    | `sig`    | assinatura Ed25519                                                                                      |
-| 128    | 64    | `prev`   | `sig` do bloco anterior (zeros no primeiro bloco)                                                       |
-| 192    | 320   | `data`   | conteúdo; texto em UTF-8, resto zerado                                                                  |
+| offset | bytes | campo    | conteúdo                                                                                                        |
+|-------:|------:|----------|-----------------------------------------------------------------------------------------------------------------|
+| 0      | 8     | `room`   | nome da sala, completado com zeros (padrão: `Bizas`)                                                            |
+| 8      | 8     | `stamp`  | `int64`, nanossegundos desde 1970-01-01 UTC, no relógio do validator (seção 3)                                  |
+| 16     | 8     | `nonce`  | `uint64`, variado pela prova de trabalho até a assinatura ter os bits zero exigidos                             |
+| 24     | 4     | `info`   | `uint32`; no gênese, o N da prova de trabalho (0 a 20); nos outros blocos, livre (as enquetes o usam)           |
+| 28     | 2     | `type`   | `uint16`: 0 `TEXT`, 5 `NETWORK_ACTION`, 6 `OTHER`; 7 `POLL` e 8 `VOTE` (extensão de enquetes); 1 a 4 reservados |
+| 30     | 2     | `length` | `int16`, bytes usados de `data` (0 a 320)                                                                       |
+| 32     | 32    | `author` | chave pública Ed25519 de quem assinou                                                                           |
+| 64     | 64    | `sig`    | assinatura Ed25519                                                                                              |
+| 128    | 64    | `prev`   | `sig` do bloco anterior (zeros no primeiro bloco)                                                               |
+| 192    | 320   | `data`   | conteúdo; texto em UTF-8, resto zerado                                                                          |
 
 - **O que se assina:** os 512 bytes com `sig` zerado. Isso inclui os bytes de `data` além de
   `length`.
@@ -86,16 +86,70 @@ Os nomes de erro vêm de `bizas.ValidationError`:
 | `TIMESTAMP_IN_FUTURE`     | `stamp` mais de 5 s à frente do relógio do validator (só na aceitação)                   |
 | `INSUFFICIENT_WORK`       | a `sig` não começa com os N bits zero que o gênese pede                                  |
 | `INVALID_WORK_BITS`       | o gênese pede mais que 20 bits zero no `info`                                            |
+| `INVALID_POLL`            | enquete malformada, ou uma enquete no gênese (extensão de enquetes, abaixo)              |
+| `INVALID_VOTE`            | voto malformado, numa enquete ou opção que não existe, ou retirada de um voto que não há |
+| `DUPLICATE_VOTE`          | a pessoa já tem voto ativo nessa opção, ou, numa enquete exclusiva, em outra             |
 | `CORRUPTED_TIMESTAMP`     | existe no código, mas hoje nunca ocorre: todo `int64` em nanossegundos é uma data válida |
+
+### Extensão: enquetes (`POLL` e `VOTE`)
+
+As enquetes **não fazem parte do protocolo em si**. Elas são um exemplo de extensão construída só sobre os campos
+livres do bloco, `type` e `info`. Para quem não é da área, é uma espécie de **plugin**: acrescenta uma função ao chat
+sem mexer no que já existia. O formato do bloco, o que se assina e o encadeamento continuam iguais.
+
+Em termos técnicos, a extensão é um **soft fork**: ela só acrescenta regras. Toda cadeia válida com as enquetes também
+é válida para um validator que não as conhece, porque ele ignora o `type`. O contrário não vale: uma cadeia com um voto
+repetido passa num validator sem a extensão e é recusada por um que a tem. Conferido com o validator da versão 0.3,
+anterior à extensão, e o atual:
+
+| cadeia                                                             | validator 0.3      | validator atual                               |
+|--------------------------------------------------------------------|--------------------|-----------------------------------------------|
+| exportada do `scripts/e2e/browser.sh`, com duas enquetes e votos   | `valid: 15 blocks` | `valid: 15 blocks`                            |
+| a mesma, com dois votos iguais da mesma chave acrescentados no fim | `valid: 17 blocks` | `INVALID: DUPLICATE_VOTE at block 16 (of 17)` |
+
+**Codificação.** O índice de um bloco é a posição dele na cadeia, a partir de 0, a mesma do `validator verify`
+(`at block <i>`):
+
+| `type`     | `info`                                                    | `data`                                                                                    |
+|------------|-----------------------------------------------------------|-------------------------------------------------------------------------------------------|
+| `POLL` (7) | bit 0 ligado: opções mutuamente exclusivas; demais bits 0 | a pergunta e as opções em UTF-8, separadas por um byte 0: `pergunta␀opção 1␀opção 2`      |
+| `VOTE` (8) | o índice do bloco da enquete                              | 2 bytes: o índice da opção (a partir de 0) e a ação, 1 para votar e 0 para retirar o voto |
+
+**Regras.** Elas dependem do estado da cadeia até o bloco (quem já votou em quê), e não só do bloco e da cabeça. Valem
+para a validade, como as outras: o `validator verify` e a revalidação na partida as aplicam.
+
+- **Enquete:** UTF-8 válido; pergunta e opções não vazias; de 2 a 10 opções; nenhuma opção repetida, byte a byte;
+  nenhum bit além do bit 0 no `info`. O gênese nunca é uma enquete, porque o `info` dele é o N da prova de trabalho.
+  Qualquer falha dá `INVALID_POLL`.
+- **Voto:** `length` igual a 2 e ação 0 ou 1; o `info` aponta para um bloco anterior que é uma enquete; a opção existe
+  nela. Retirar um voto exige ter voto ativo naquela opção. Qualquer falha dá `INVALID_VOTE`.
+- **Um voto por opção:** em nenhuma enquete alguém vota duas vezes na mesma opção; pode só retirar o voto. Numa enquete
+  exclusiva, quem já tem voto ativo numa opção também não vota em outra. As duas recusas dão `DUPLICATE_VOTE`.
+
+**Trocar de opção numa enquete exclusiva.** São dois blocos: primeiro a pessoa retira o voto atual, depois vota na
+opção nova. A página faz os dois em sequência, com um clique, e cada um paga a própria prova de trabalho; com N = 10,
+isso é o dobro do tempo de uma mensagem. Os dois blocos deixam a regra simples (no máximo um voto ativo por pessoa numa
+enquete exclusiva), e a retirada continua sendo o único jeito de desfazer um voto. Se a retirada for recusada, o voto
+não é enviado.
+
+**Na página.** A enquete aparece como uma mensagem, com uma barra por opção, o número de votos e a porcentagem do total.
+Cada voto aparece como uma linha: "`<quem>` voted for “Pizza” in the poll at block 6 · “Where shall we eat?”", e o
+trecho "in the poll at block 6" leva à enquete. A página confere cada bloco de enquete com as mesmas regras (`poll.js`,
+espelho do `poll.go`). Se discordar do validator num bloco que ele aceitou, mostra o bloco como ignorado e o deixa fora
+da contagem, sem reconectar: a assinatura, o trabalho e o `prev` continuam conferidos como antes.
+
+**Cadeia anterior à extensão.** Uma cadeia gravada por um validator sem a extensão pode ter um bloco de `type` 7 ou 8
+que não segue as regras (o teste de fraude edita o `type`). Na partida, esse bloco e os seguintes vão para
+`chain.bin.quarantine-<ns>`, como qualquer bloco inválido (seção 4). Nada é apagado.
 
 ## 2. Rotas públicas do server (porta 5000; 80 no host)
 
-| rota          | resposta                                                                                                                                       |
-|---------------|------------------------------------------------------------------------------------------------------------------------------------------------|
-| `GET /`       | a página (`index.html`, `style.css`, `app.js`, `bizas.js`, `when.js`, `nacl-fast.min.js`), embutida no binário com `go:embed`; nada vem de CDN |
-| `GET /health` | `200 ok` só se o `/health` do validator também responder 200; senão `503`                                                                      |
-| `GET /chain`  | a cadeia inteira, com os blocos de 512 bytes concatenados (`application/octet-stream`), para exportar e verificar fora da Pi                   |
-| `GET /ws`     | WebSocket do chat (seção 3)                                                                                                                    |
+| rota          | resposta                                                                                                                                                  |
+|---------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `GET /`       | a página (`index.html`, `style.css`, `app.js`, `bizas.js`, `poll.js`, `when.js`, `nacl-fast.min.js`), embutida no binário com `go:embed`; nada vem de CDN |
+| `GET /health` | `200 ok` só se o `/health` do validator também responder 200; senão `503`                                                                                 |
+| `GET /chain`  | a cadeia inteira, com os blocos de 512 bytes concatenados (`application/octet-stream`), para exportar e verificar fora da Pi                              |
+| `GET /ws`     | WebSocket do chat (seção 3)                                                                                                                               |
 
 **Porta de manutenção do server:** `ADMIN_ADDR`, padrão `127.0.0.1:5001`, só no loopback **de dentro do
 container**. Ela não é publicada no host, e o server se recusa a iniciar se `ADMIN_ADDR` não for um
@@ -315,7 +369,9 @@ Mais dois pontos:
 - **Vetor de teste:** `application/bizas/testdata/vector.txt` tem a chave pública, os 512 bytes e as
   assinaturas de uma cadeia de dois blocos montada com seed e campos fixos. O teste Go confere que o
   código ainda produz exatamente esse arquivo (para regravá-lo depois de uma mudança intencional de
-  formato: `go test ./bizas -run TestVector -update`).
+  formato: `go test ./bizas -run TestVector -update`). O vetor também tem uma enquete e um voto, e 24 casos de
+  enquete (blocos aceitos e recusados, cada um com o código que o Go devolve), que o teste do Deno confere um a um
+  contra o `poll.js`.
 - **JS da página igual ao Go:** o `bizas.js` da página reproduz o mesmo vetor byte a byte, rodando no
   Deno com o mesmo tweetnacl embutido (`deno test --allow-read application/server/bizas.test.js`).
 - **Tweetnacl conferido:** ele é o 1.0.3 do registro do npm, com o `integrity` conferido por
@@ -352,7 +408,10 @@ Mais dois pontos:
   - frame acima de 4096 bytes fechando a conexão com 1009;
   - `/health` com o validator fora do ar;
   - validator fora do ar durante um envio;
-  - `validator verify` numa cadeia válida, numa adulterada e numa com gênese falsa.
+  - `validator verify` numa cadeia válida, numa adulterada e numa com gênese falsa;
+  - enquetes: as recusas, a troca de opção em dois blocos, a enquete não exclusiva, o voto que não foi gravado (falha
+    de escrita) ficando fora da contagem, o estado refeito do arquivo na partida, o voto repetido no `VerifyChain` e
+    uma cadeia antiga com uma enquete malformada indo para a quarentena.
 - **Sabotagens:** cada conferência foi sabotada e reprovou. Os casos foram:
   - o server transmitindo o que foi recusado;
   - o validator aceitando sem conferir;
@@ -366,7 +425,9 @@ Mais dois pontos:
   - persistência sem o descarte do pedaço final, sem a regra do carimbo no futuro, com o relógio só da
     placa (sem a cabeça como piso) e com a regra do relógio aplicada ao recarregar;
   - o navegador assinando com o próprio relógio (o aparelho adiantado é recusado);
-  - a página ignorando a calibração do `set-date` (as datas não aparecem).
+  - a página ignorando a calibração do `set-date` (as datas não aparecem);
+  - enquetes: o `Append` e o `ChainVerify` sem as regras de enquete, a regra de exclusividade tirada no Go e no JS, o
+    JS aceitando opção repetida e a página sem contar os votos.
 - **Ponta a ponta (`scripts/e2e/browser.sh`):** os binários reais rodando no PC, com a página aberta
   **pelo IP da LAN**, fora de contexto seguro (`isSecureContext === false`), como os celulares vão
   abri-la na Pi. São dois "aparelhos" isolados no Firefox 160 headless, controlados por WebDriver
@@ -383,11 +444,16 @@ Mais dois pontos:
     mensagens aceitas;
   - a impressão digital igual nos dois aparelhos e na cadeia exportada;
   - as mensagens mostrando "just now"; depois do comando `set-date` de verdade, as duas páginas
-    abertas mostrando a data informada sem recarregar, e mantendo-a depois de recarregar.
+    abertas mostrando a data informada sem recarregar, e mantendo-a depois de recarregar;
+  - enquetes: o menu do "+" só com a enquete; o painel de criação recusando opções repetidas; uma enquete exclusiva
+    com uma opção em `<b>` aparecendo como texto; votos dos dois aparelhos com as barras e as porcentagens; a troca de
+    opção em dois blocos; a retirada do voto; uma enquete não exclusiva com dois votos da mesma pessoa; o link da linha
+    do voto levando à enquete; os textos em português; e um voto repetido montado no teste de fraude (`type` 8, `info`
+    da enquete) recusado com `DUPLICATE_VOTE`.
 - **Containers (`scripts/containers-test.sh`):** reiniciar o validator mantém a cadeia; 300 bytes
   soltos no fim do `chain.bin`, como numa queda de energia, são descartados na partida, com registro
   no log. Os scripts `set-date` e `set-auto-date` da placa rodados contra os containers; o
   `set-auto-date` num container sem rede (`--network none`) sai com erro em inglês sugerindo o
-  `set-date`. O `reset-chat --yes` arquiva a cadeia de 6 blocos, a `/chain` volta vazia, o arquivo
+  `set-date`. O `reset-chat --yes` arquiva a cadeia de 15 blocos, a `/chain` volta vazia, o arquivo
   `chain.bin.reset-<ns>` passa no `validator verify`, e um segundo `reset-chat` com a cadeia vazia não arquiva nada;
   sem terminal e sem `--yes`, o comando recusa (código 2) e a cadeia não muda.

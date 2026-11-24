@@ -65,21 +65,22 @@ type AuthProof struct {
 
 type DataType uint16
 
+// Os valores 1 a 4 não são usados e ficam reservados
 const (
-	Text DataType = iota
-	Mono
-	MonoRLE
-	Colored
-	ColoredRLE
-	NetworkAction
-	Other
+	Text          DataType = 0
+	NetworkAction DataType = 5
+	Other         DataType = 6
+	// Poll e Vote são a extensão de enquetes (poll.go)
+	Poll DataType = 7
+	Vote DataType = 8
 )
 
-var dataTypeNames = [...]string{"TEXT", "MONO", "MONO_RLE", "COLORED", "COLORED_RLE", "NETWORK_ACTION", "OTHER"}
+var dataTypeNames = map[DataType]string{Text: "TEXT", NetworkAction: "NETWORK_ACTION", Other: "OTHER", Poll: "POLL",
+	Vote: "VOTE"}
 
 func (t DataType) String() string {
-	if int(t) < len(dataTypeNames) {
-		return dataTypeNames[t]
+	if name, ok := dataTypeNames[t]; ok {
+		return name
 	}
 	return fmt.Sprintf("DataType(%d)", uint16(t))
 }
@@ -116,10 +117,17 @@ const (
 	InsufficientWork
 	// InvalidWorkBits: o gênese pede mais que MaxWorkBits bits zero
 	InvalidWorkBits
+	// Extensão de enquetes (poll.go). InvalidPoll: enquete malformada, ou no gênese
+	InvalidPoll
+	// InvalidVote: voto malformado, numa enquete que não existe, numa opção que não existe, ou retirada sem voto
+	InvalidVote
+	// DuplicateVote: a pessoa já tem voto ativo nessa opção, ou, numa enquete exclusiva, em outra
+	DuplicateVote
 )
 
 var validationErrorNames = [...]string{"NONE", "FRAUD", "CORRUPTED_TIMESTAMP", "INVALID_ROOM", "INVALID_LENGTH",
-	"NO_TIMESTAMP_CONTINUITY", "NO_HASH_CONTINUITY", "TIMESTAMP_IN_FUTURE", "INSUFFICIENT_WORK", "INVALID_WORK_BITS"}
+	"NO_TIMESTAMP_CONTINUITY", "NO_HASH_CONTINUITY", "TIMESTAMP_IN_FUTURE", "INSUFFICIENT_WORK", "INVALID_WORK_BITS",
+	"INVALID_POLL", "INVALID_VOTE", "DUPLICATE_VOTE"}
 
 func (e ValidationError) String() string {
 	if e >= 0 && int(e) < len(validationErrorNames) {
@@ -254,9 +262,10 @@ func (b Block) Verify() ValidationError {
 }
 
 // ChainVerify confere cada bloco e o encadeamento com o anterior. O info do gênese é o N da cadeia: a assinatura de
-// todo bloco, inclusive a do gênese, tem de começar com N bits zero. Devolve o primeiro erro e o índice do bloco, ou
-// (None, -1)
+// todo bloco, inclusive a do gênese, tem de começar com N bits zero. As enquetes e os votos são conferidos contra o
+// estado da cadeia até ali (Tally). Devolve o primeiro erro e o índice do bloco, ou (None, -1)
 func ChainVerify(chain []Block) (ValidationError, int) {
+	tally := NewTally()
 	for i := range chain {
 		block := &chain[i]
 		if err := block.Verify(); err != None {
@@ -266,11 +275,13 @@ func ChainVerify(chain []Block) (ValidationError, int) {
 			if err := VerifyGenesisWork(block); err != None {
 				return err, i
 			}
-			continue
-		}
-		if err := VerifyLink(&chain[i-1], block, chain[0].Info); err != None {
+		} else if err := VerifyLink(&chain[i-1], block, chain[0].Info); err != None {
 			return err, i
 		}
+		if err := tally.Check(i, block); err != None {
+			return err, i
+		}
+		tally.Apply(i, block)
 	}
 	return None, -1
 }

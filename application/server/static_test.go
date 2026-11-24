@@ -91,7 +91,7 @@ func TestLogoColor(t *testing.T) {
 }
 
 func TestPageFiles(t *testing.T) {
-	for _, name := range []string{"index.html", "style.css", "app.js", "bizas.js", "when.js", "i18n.js", "qrcode.js", "bizas.png", "nacl-fast.min.js"} {
+	for _, name := range []string{"index.html", "style.css", "app.js", "bizas.js", "when.js", "i18n.js", "qrcode.js", "bizas.png", "nacl-fast.min.js", "poll.js"} {
 		if _, err := fs.Stat(Static(), name); err != nil {
 			t.Errorf("%s not embedded: %v", name, err)
 		}

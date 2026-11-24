@@ -6,6 +6,7 @@ import {
   BLOCK_SIZE, DEFAULT_ROOM, MAX_WORK_BITS, decodeBlock, emptyBlock, encodeBlock, fingerprint, fromHex, hasWork, hex,
   leadingZeroBits, mineBlock, mineBlockSync, nextBlock, signBlock, textOf, uploadString, verifyBlock,
 } from "./static/bizas.js";
+import { Tally, parsePoll, uploadPoll, uploadVote } from "./static/poll.js";
 
 const here = new URL(".", import.meta.url);
 const vectorText = await Deno.readTextFile(new URL("../bizas/testdata/vector.txt", here));
@@ -15,9 +16,15 @@ const V = Object.fromEntries(
     return [l.slice(0, i), l.slice(i + 1)];
   }),
 );
-for (const k of ["pub", "genesis", "block1", "fingerprint", "nonces"]) {
+for (const k of ["pub", "genesis", "block1", "fingerprint", "nonces", "poll", "vote", "counts"]) {
   if (!V[k]) throw new Error(`test vector is missing key ${k}`);
 }
+// Linhas case=<nome>,<índice>,<código>,<bloco em hex>: um bloco de enquete conferido contra a cadeia até o índice
+const CASES = vectorText.split("\n").filter((l) => l.startsWith("case=")).map((l) => {
+  const [name, index, code, blockHex] = l.slice(5).split(",");
+  return { name, index: Number(index), code, blockHex };
+});
+if (CASES.length < 20) throw new Error(`test vector has only ${CASES.length} poll cases`);
 
 // O mesmo texto de application/bizas/bizas_test.go: tem um caractere de 3 bytes em UTF-8
 const TEST_TEXT = "Hello, Bizas! ✓";
@@ -268,4 +275,62 @@ Deno.test("fraud test: stamp as a UTC date and room as text", async () => {
   const block = composeBlock({ ...base, modes: { roomText: true, stampDate: true }, overrides: { room: "Other", stamp: "1970-01-01 00:00:10.000000001" } });
   assert(block.bytes && new TextDecoder().decode(block.effective.room.subarray(0, 5)) === "Other" && block.effective.stamp === 10_000_000_001n, "composed with the modes");
   assert(verifyBlock(block.effective), "re-signed with the edited fields");
+});
+
+// A enquete e o voto do vetor: o JS monta os mesmos bytes, minerando a partir dos mesmos nonces (pollChain no Go)
+const POLL_QUESTION = "Where shall we eat?";
+const POLL_OPTIONS = ["Pizza", "Sushi", "<b>Tacos</b>"];
+function pollChainBlocks() {
+  const { kp, b } = testChain();
+  const p = emptyBlock();
+  p.room = b.room.slice();
+  p.prev = b.sig.slice();
+  p.stamp = 1_763_490_002_000_000_000n;
+  p.nonce = 1000n;
+  p.author = kp.publicKey.slice();
+  uploadPoll(p, POLL_QUESTION, POLL_OPTIONS, true);
+  const pBytes = mineBlockSync(p, kp.secretKey, TEST_WORK_BITS);
+  const v = emptyBlock();
+  v.room = b.room.slice();
+  v.prev = p.sig.slice();
+  v.stamp = 1_763_490_003_000_000_000n;
+  v.nonce = 2000n;
+  v.author = kp.publicKey.slice();
+  uploadVote(v, 2, 1, true);
+  const vBytes = mineBlockSync(v, kp.secretKey, TEST_WORK_BITS);
+  return { pBytes, vBytes };
+}
+
+Deno.test("poll and vote blocks match the vector", () => {
+  const { pBytes, vBytes } = pollChainBlocks();
+  assert(hex(pBytes) === V.poll, `poll differs:\n js     ${hex(pBytes)}\n vector ${V.poll}`);
+  assert(hex(vBytes) === V.vote, `vote differs:\n js     ${hex(vBytes)}\n vector ${V.vote}`);
+  const p = parsePoll(decodeBlock(pBytes));
+  assert(p && p.question === POLL_QUESTION && p.options.join("|") === POLL_OPTIONS.join("|") && p.exclusive,
+    `parsePoll: ${JSON.stringify(p)}`);
+});
+
+// A cadeia do vetor com a enquete e o voto, decodificada dos bytes que o Go gravou
+function vectorPollChain() {
+  return [V.genesis, V.block1, V.poll, V.vote].map((h) => decodeBlock(fromHex(h)));
+}
+
+Deno.test("the tally of the vector chain matches Go", () => {
+  const tally = new Tally();
+  vectorPollChain().forEach((b, i) => {
+    const err = tally.check(i, b);
+    assert(err === null, `block ${i}: ${err}`);
+    tally.apply(i, b);
+  });
+  assert(tally.counts(2).join(" ") === V.counts, `counts: js ${tally.counts(2).join(" ")}, vector ${V.counts}`);
+});
+
+Deno.test("every poll case gets the same answer as Go", () => {
+  const chain = vectorPollChain();
+  for (const c of CASES) {
+    const tally = new Tally();
+    chain.slice(0, c.index).forEach((b, i) => tally.apply(i, b));
+    const got = tally.check(c.index, decodeBlock(fromHex(c.blockHex))) ?? "NONE";
+    assert(got === c.code, `${c.name}: js ${got}, Go ${c.code}`);
+  }
 });

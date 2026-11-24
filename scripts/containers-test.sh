@@ -157,7 +157,7 @@ chain_sum() { curl -sf "http://127.0.0.1:$PORT/chain" | sha256sum | cut -d' ' -f
 echo "== persistence: restarting the validator keeps the chain"
 BEFORE_SIZE="$(curl -sf "http://127.0.0.1:$PORT/chain" | wc -c)"
 BEFORE="$(chain_sum)"
-check "chain size before restart (6 blocks from the browser test)" "$BEFORE_SIZE" "3072"
+check "chain size before restart (15 blocks from the browser test)" "$BEFORE_SIZE" "7680"
 docker restart "$V" >/dev/null
 wait_health || fail "validator did not come back after restart"
 check "chain after validator restart" "$(chain_sum)" "$BEFORE"

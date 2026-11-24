@@ -172,18 +172,18 @@ assinar automaticamente depois das edições. Ao trocar o modo de um campo já e
 
 Cada mensagem vira um **bloco de 512 bytes**, com layout fixo e inteiros em little-endian:
 
-| bytes | campo    | conteúdo                                       |
-|------:|----------|------------------------------------------------|
-| 8     | `room`   | nome da sala (padrão `Bizas`)                  |
-| 8     | `stamp`  | instante em nanossegundos desde 1970 (UTC)     |
-| 8     | `nonce`  | número variado pela prova de trabalho          |
-| 4     | `info`   | no gênese, o N da prova de trabalho; livre     |
-| 2     | `type`   | tipo do conteúdo (`TEXT`, …)                   |
-| 2     | `length` | quantos bytes de `data` estão em uso (0 a 320) |
-| 32    | `author` | chave pública de quem assinou                  |
-| 64    | `sig`    | assinatura Ed25519                             |
-| 64    | `prev`   | **assinatura do bloco anterior**               |
-| 320   | `data`   | o texto, em UTF-8                              |
+| bytes | campo    | conteúdo                                                                    |
+|------:|----------|-----------------------------------------------------------------------------|
+| 8     | `room`   | nome da sala (padrão `Bizas`)                                               |
+| 8     | `stamp`  | instante em nanossegundos desde 1970 (UTC)                                  |
+| 8     | `nonce`  | número variado pela prova de trabalho                                       |
+| 4     | `info`   | no gênese, o N da prova de trabalho; nos outros, livre (as enquetes o usam) |
+| 2     | `type`   | tipo do conteúdo (`TEXT`, …; `POLL` e `VOTE` nas enquetes)                  |
+| 2     | `length` | quantos bytes de `data` estão em uso (0 a 320)                              |
+| 32    | `author` | chave pública de quem assinou                                               |
+| 64    | `sig`    | assinatura Ed25519                                                          |
+| 64    | `prev`   | **assinatura do bloco anterior**                                            |
+| 320   | `data`   | o texto, em UTF-8                                                           |
 
 - **O que se assina:** os 512 bytes inteiros, com o campo `sig` zerado.
 - **Por que layout fixo:** o navegador (JavaScript) e o servidor (Go) precisam gerar exatamente os
@@ -275,6 +275,32 @@ set-auto-date                                # consulta a hora pela rede (SNTP);
   (`--tz -03:00` ou `--tz=-03:00`).
 - **O que muda e o que não muda:** a flag só afeta como a hora digitada é lida. A página continua
   mostrando a hora no fuso de cada aparelho.
+
+### Exemplo de extensão: enquetes (polls)
+
+As enquetes **não fazem parte do protocolo em si**: são um exemplo de extensão construída só com os campos livres do
+bloco, `type` e `info`. Esse mecanismo funciona como uma espécie de **plugin**, que acrescenta uma função ao chat sem
+mexer no que já existia: o formato do bloco, a assinatura e o encadeamento não mudam.
+
+Em termos técnicos, é um **soft fork**, pois a extensão só acrescenta regras. Toda cadeia válida com as enquetes também
+é válida para um validator que não as conhece, porque ele ignora o `type`; o contrário não vale. Uma cadeia com um voto
+repetido, por exemplo, passa no `validator verify` da versão 0.3 (`valid: 17 blocks`) e é recusada pelo atual
+(`INVALID: DUPLICATE_VOTE at block 16 (of 17)`).
+
+- **Criar:** o botão "+", à esquerda da barra de mensagem, abre um menu que por enquanto só tem "Poll". Ele abre o
+  painel lateral com a pergunta, de 2 a 10 opções e a caixa "One choice per person", que torna as opções mutuamente
+  exclusivas. A enquete vai num bloco `POLL`: a pergunta e as opções no `data`, e a exclusividade no bit 0 do `info`.
+- **Votar:** a enquete aparece como uma mensagem, com uma barra por opção, a porcentagem e o número de votos ao lado.
+  Clicar numa opção vota, e clicar de novo retira o voto. Cada voto é um bloco `VOTE`, com o índice do bloco da enquete
+  no `info`, e aparece como uma linha: "`1d060702` voted for “Pizza” in the poll at block 6 · “Where shall we eat?”".
+- **Um voto por opção:** em nenhuma enquete alguém vota duas vezes na mesma opção; o validator recusa o bloco com
+  `DUPLICATE_VOTE`, e a pessoa só pode retirar o voto. Numa enquete exclusiva, cada pessoa tem no máximo um voto ativo.
+- **Trocar de opção numa enquete exclusiva:** são dois blocos, a retirada do voto atual e o voto novo, que a página
+  envia em sequência com um clique. Cada um paga a própria prova de trabalho, então a troca leva o dobro do tempo de uma
+  mensagem. Com dois blocos, a regra fica simples (um voto ativo por pessoa) e a retirada continua sendo o único jeito
+  de desfazer um voto.
+
+As regras completas, a codificação e os códigos de erro estão em [docs/protocol.md](docs/protocol.md).
 
 ### Começar um chat novo
 
@@ -421,7 +447,8 @@ rede. Se o outro aparelho não conectar, é o firewall do PC bloqueando a porta.
   `/chain` e o `validator verify`.
 - **O que não existe fora da placa:** os containers, o init e os comandos `set-date`, `set-auto-date` e `reset-chat`
   em `/usr/bin`. O script mostra, ao subir, como chamar os dois primeiros pelo binário
-  (`ADMIN_ADDR=127.0.0.1:8081 output/dev/server set-date …`); no lugar do `reset-chat`, o `--fresh` começa com a cadeia vazia (e apaga a do PC).
+  (`ADMIN_ADDR=127.0.0.1:8081 output/dev/server set-date …`); no lugar do `reset-chat`, o `--fresh` começa com a
+  cadeia vazia (e apaga a do PC).
 
 ## Documentação
 

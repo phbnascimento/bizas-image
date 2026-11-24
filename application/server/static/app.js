@@ -1,9 +1,10 @@
 // Cliente do chat: gera/guarda a chave, assina cada mensagem e mantém a cópia local da cadeia a partir do que o server
 // transmite. Protocolo: docs/protocol.md
 import {
-  BLOCK_SIZE, DEFAULT_WORK_BITS, MAX_DATA_LENGTH, MAX_WORK_BITS, decodeBlock, equalBytes, fingerprint, fromHex, hasWork,
-  hex, mineBlock, nextBlock, textOf, uploadString, verifyBlock,
+  BLOCK_SIZE, DEFAULT_WORK_BITS, DataType, MAX_DATA_LENGTH, MAX_WORK_BITS, decodeBlock, equalBytes, fingerprint, fromHex,
+  hasWork, hex, mineBlock, nextBlock, textOf, uploadString, verifyBlock,
 } from "./bizas.js";
+import { MAX_POLL_OPTIONS, MIN_POLL_OPTIONS, Tally, parseVote, pollData, uploadPoll, uploadVote } from "./poll.js";
 import { formatWhen } from "./when.js";
 import { applyStatic, initLang, onLangChange, setLang, t } from "./i18n.js";
 import { FIELDS, composeBlock, convertText, formatField } from "./fraud.js";
@@ -19,6 +20,10 @@ const ui = {
   pClose: $("p-close"), msgError: $("msg-error"), fraud: $("fraud"), fraudFields: $("fraud-fields"), fraudResign: $("fraud-resign"), fraudSync: $("fraud-sync"), fraudStampDate: $("fraud-stampdate"), fraudRoomHex: $("fraud-roomhex"), fraudReset: $("fraud-reset"), fraudResult: $("fraud-result"),
   fraudToggle: $("fraud-toggle"), pHue: $("p-hue"), pQr: $("p-qr"), pReset: $("p-reset"),
   work: $("work"), workBox: $("work-box"), workBits: $("work-bits"), mining: $("mining"),
+  plus: $("plus"), plusMenu: $("plus-menu"), pollPanel: $("poll-panel"), pollForm: $("poll-form"),
+  pollQuestion: $("poll-question"), pollOptions: $("poll-options"), pollAdd: $("poll-add"),
+  pollExclusive: $("poll-exclusive"), pollGenesis: $("poll-genesis"), pollErr: $("poll-err"), pollCount: $("poll-count"),
+  pollCreate: $("poll-create"),
 };
 ui.workBits.max = String(MAX_WORK_BITS);
 ui.workBits.value = String(DEFAULT_WORK_BITS);
@@ -45,6 +50,7 @@ document.addEventListener("click", (ev) => {
   else if (el.dataset.themeSet) setTheme(el.dataset.themeSet);
   else {
     $("panel").hidden = true; // um painel por vez
+    $("poll-panel").hidden = true;
     settings.hidden = false;
   }
 });
@@ -168,6 +174,11 @@ let height = 0;
 let pending = null; // { text, sig, tries, fraud?, mining? }: sig é null enquanto a prova de trabalho roda
 // N da cadeia (o info do gênese): quantos bits zero cada assinatura precisa ter. null com a cadeia vazia
 let workBits = null;
+// Enquetes da cadeia local e os votos ativos (poll.js), e o cartão de cada enquete na tela, pelo índice do bloco
+let tally = new Tally();
+const pollCards = new Map();
+// Blocos que seguem o que está pendente: trocar de opção numa enquete exclusiva é retirar o voto e votar de novo
+let queue = [];
 
 // Diferença, em ns, entre o relógio do validator e o deste aparelho. Quem fornece a hora é a placa: o carimbo assinado
 // é o relógio do validator, não o do celular. Recalculada a cada conexão (aviso "time")
@@ -211,6 +222,7 @@ function fillPanel() {
 
 function openPanel(keyHex) {
   closeSettings(); // um painel por vez
+  ui.pollPanel.hidden = true;
   openKey = keyHex;
   ui.panel.hidden = false;
   ui.pName.value = names[keyHex] ?? "";
@@ -256,10 +268,11 @@ function roomName(room) {
   return new TextDecoder().decode(room.subarray(0, end < 0 ? room.length : end));
 }
 
-function render(block) {
+function render(block, index, pollErr) {
   ui.empty.hidden = true;
   const el = document.createElement("div");
   el.className = "msg";
+  el.dataset.index = String(index);
   if (equalBytes(block.author, keyPair.publicKey)) el.classList.add("mine");
 
   const meta = document.createElement("div");
@@ -273,12 +286,25 @@ function render(block) {
   when.textContent = whenText(block.stamp);
   meta.append(who, when);
 
-  const body = document.createElement("div");
+  let body = document.createElement("div");
   body.className = "text";
   const text = textOf(block);
+  const isPollType = block.type === DataType.POLL || block.type === DataType.VOTE;
   // textContent, nunca innerHTML: o conteúdo vem de qualquer aparelho
   if (text != null) {
     body.textContent = text;
+  } else if (isPollType && pollErr) {
+    // O validator aceitou, mas este navegador discorda: o bloco fica na tela e fora da contagem, sem derrubar a conexão
+    const vars = { type: block.type === DataType.POLL ? "POLL" : "VOTE", code: pollErr };
+    body.dataset.i18n = "msg.ignored";
+    body.dataset.i18nVars = JSON.stringify(vars);
+    body.textContent = t("msg.ignored", vars);
+  } else if (block.type === DataType.POLL) {
+    body = pollCard(index);
+    el.classList.add("poll-msg");
+  } else if (block.type === DataType.VOTE) {
+    body = voteLine(block);
+    el.classList.add("vote-msg");
   } else {
     body.dataset.i18n = "msg.opaque";
     body.dataset.i18nVars = JSON.stringify({ type: block.type, length: block.length });
@@ -311,6 +337,11 @@ function apply(block) {
     workBits = block.info;
     ui.work.textContent = String(workBits);
   }
+  // Enquetes: as regras dependem da cadeia até aqui. Um bloco que este navegador recusa não derruba a conexão (o
+  // validator já o aceitou): fica na tela como ignorado e fora da contagem
+  const index = height;
+  const pollErr = tally.check(index, block);
+  if (pollErr === null) tally.apply(index, block);
   head = block;
   const key = hex(block.author);
   const info = authors.get(key);
@@ -323,9 +354,12 @@ function apply(block) {
   ui.fingerprint.title = hex(block.sig);
   ui.fingerprint.classList.add("partial");
   ui.room.textContent = roomName(block.room);
-  render(block);
+  render(block, index, pollErr);
+  const vote = pollErr === null ? parseVote(block) : null;
+  if (vote) paintPoll(vote.poll);
   fillPanel();
   if (pending?.sig && equalBytes(block.sig, pending.sig)) {
+    const kind = pending.spec?.kind ?? "text";
     if (pending.fraud) {
       setFraudResult("fraud.accepted", "ok");
       for (const k of Object.keys(overrides)) delete overrides[k];
@@ -334,7 +368,10 @@ function apply(block) {
       if (frozenNs !== null) frozenNs = nowNs();
     }
     pending = null;
-    ui.text.value = "";
+    if (kind === "text") ui.text.value = "";
+    if (kind === "poll") resetPollForm(true);
+    // O bloco seguinte da fila (o voto depois da retirada) sai depois que o histórico inteiro foi aplicado
+    if (queue.length) setTimeout(sendQueued, 0);
     updateCount();
   }
   refreshFraud();
@@ -346,6 +383,8 @@ function resetChain() {
   head = null;
   height = 0;
   workBits = null;
+  tally = new Tally();
+  pollCards.clear();
   ui.work.textContent = "—";
   authors.clear();
   ui.height.textContent = "0";
@@ -356,6 +395,249 @@ function resetChain() {
   ui.empty.hidden = false;
   fillPanel();
 }
+
+// --- enquetes --------------------------------------------------------------
+// Extensão POLL/VOTE (poll.js). A enquete aparece como uma mensagem, com uma barra por opção; o voto aparece como uma
+// linha curta. Clicar numa opção vota; clicar de novo retira o voto. Numa enquete exclusiva, clicar em outra opção
+// retira o voto atual e vota na nova: dois blocos, cada um com a própria prova de trabalho
+const myHex = hex(keyPair.publicKey);
+
+function pollCard(index) {
+  const p = tally.poll(index);
+  const card = document.createElement("div");
+  card.className = "poll";
+  const label = document.createElement("div");
+  label.className = "plabel";
+  label.dataset.i18n = "poll.label";
+  label.dataset.i18nVars = JSON.stringify({ index });
+  label.textContent = t("poll.label", { index });
+  const q = document.createElement("div");
+  q.className = "q";
+  q.textContent = p.question;
+  card.append(label, q);
+  p.options.forEach((option, i) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "opt";
+    btn.dataset.poll = String(index);
+    btn.dataset.opt = String(i);
+    const fill = document.createElement("span");
+    fill.className = "fill";
+    const name = document.createElement("span");
+    name.className = "oname";
+    name.textContent = option;
+    const num = document.createElement("span");
+    num.className = "onum";
+    btn.append(fill, name, num);
+    card.append(btn);
+  });
+  const foot = document.createElement("div");
+  foot.className = "pfoot";
+  const mode = document.createElement("span");
+  mode.dataset.i18n = p.exclusive ? "poll.modeOne" : "poll.modeMany";
+  mode.textContent = t(mode.dataset.i18n);
+  const total = document.createElement("span");
+  total.className = "ptotal";
+  foot.append(mode, document.createTextNode(" · "), total);
+  card.append(foot);
+  pollCards.set(index, card);
+  paintPoll(index, card);
+  return card;
+}
+
+// Atualiza as barras, os números e as opções votadas por esta chave
+function paintPoll(index, card = pollCards.get(index)) {
+  const counts = tally.counts(index);
+  if (!card || !counts) return;
+  const p = tally.poll(index);
+  const mine = tally.votesOf(index, myHex);
+  const total = counts.reduce((a, b) => a + b, 0);
+  for (const btn of card.querySelectorAll(".opt")) {
+    const i = Number(btn.dataset.opt);
+    const pct = total ? Math.round((counts[i] * 100) / total) : 0;
+    btn.querySelector(".fill").style.width = `${pct}%`;
+    btn.querySelector(".onum").textContent = `${counts[i]} · ${pct}%`;
+    btn.classList.toggle("voted", mine.has(i));
+    btn.setAttribute("aria-pressed", String(mine.has(i)));
+    const key = mine.has(i) ? "poll.unvote" : "poll.vote";
+    btn.dataset.i18nAria = key;
+    btn.setAttribute("aria-label", t(key, { option: p.options[i] }));
+    btn.title = btn.getAttribute("aria-label");
+    btn.disabled = !synced || pending !== null;
+  }
+  const totalEl = card.querySelector(".ptotal");
+  totalEl.dataset.i18n = total === 1 ? "poll.total1" : "poll.totalN";
+  totalEl.dataset.i18nVars = JSON.stringify({ n: total });
+  totalEl.textContent = t(totalEl.dataset.i18n, { n: total });
+}
+// O applyStatic traduz o aria-label sem as variáveis: repinta as enquetes depois dele
+onLangChange(() => { for (const index of pollCards.keys()) paintPoll(index); });
+
+// Linha de um voto: "<quem> votou em “Pizza” na enquete do bloco 12 · “Onde vamos comer?”". O índice leva à enquete
+function voteLine(block) {
+  const v = parseVote(block);
+  const p = tally.poll(v.poll);
+  const line = document.createElement("div");
+  line.className = "text vote";
+  const what = document.createElement("span");
+  what.dataset.i18n = v.cast ? "vote.cast" : "vote.revoke";
+  what.dataset.i18nVars = JSON.stringify({ option: p.options[v.option] });
+  what.textContent = t(what.dataset.i18n, { option: p.options[v.option] });
+  const where = document.createElement("a");
+  where.href = "#";
+  where.className = "goto";
+  where.dataset.goto = String(v.poll);
+  where.dataset.i18n = "vote.where";
+  where.dataset.i18nVars = JSON.stringify({ index: v.poll });
+  where.textContent = t("vote.where", { index: v.poll });
+  const q = document.createElement("span");
+  q.className = "vq";
+  q.textContent = `“${p.question}”`;
+  line.append(what, " ", where, " · ", q);
+  return line;
+}
+
+document.addEventListener("click", (ev) => {
+  const go = ev.target.closest?.("a.goto");
+  if (go) {
+    ev.preventDefault();
+    const card = pollCards.get(Number(go.dataset.goto));
+    const msg = card?.closest(".msg");
+    if (msg) {
+      msg.scrollIntoView({ block: "center" });
+      msg.classList.remove("flash");
+      void msg.offsetWidth; // reinicia a animação
+      msg.classList.add("flash");
+    }
+    return;
+  }
+  const btn = ev.target.closest?.("button.opt");
+  if (btn) vote(Number(btn.dataset.poll), Number(btn.dataset.opt));
+});
+
+function vote(index, option) {
+  const p = tally.poll(index);
+  if (!p || !synced || pending) return;
+  setMsgError();
+  const mine = tally.votesOf(index, myHex);
+  const spec = (o, cast) => ({ kind: "vote", poll: index, option: o, cast });
+  let specs;
+  if (mine.has(option)) specs = [spec(option, false)];
+  else if (p.exclusive && mine.size > 0) specs = [spec([...mine][0], false), spec(option, true)];
+  else specs = [spec(option, true)];
+  queue = specs.slice(1);
+  sendSpec(specs[0], 1).catch((err) => setMsgError(null, {}, err.message));
+}
+
+// Menu do "+" ao lado da barra de mensagem. Por enquanto, só a enquete
+function closePlusMenu() {
+  ui.plusMenu.hidden = true;
+  ui.plus.setAttribute("aria-expanded", "false");
+}
+ui.plus.addEventListener("click", (ev) => {
+  ev.stopPropagation();
+  const open = ui.plusMenu.hidden;
+  ui.plusMenu.hidden = !open;
+  ui.plus.setAttribute("aria-expanded", String(open));
+  if (open) $("menu-poll").focus();
+});
+document.addEventListener("click", (ev) => {
+  if (!ui.plusMenu.hidden && !ev.target.closest?.("#plus-menu")) closePlusMenu();
+});
+document.addEventListener("keydown", (ev) => {
+  if (ev.key === "Escape") { closePlusMenu(); ui.pollPanel.hidden = true; }
+});
+$("menu-poll").addEventListener("click", () => {
+  closePlusMenu();
+  closeSettings(); // um painel por vez
+  closePanel();
+  ui.pollPanel.hidden = false;
+  refreshPollForm();
+  ui.pollQuestion.focus();
+});
+$("poll-close").addEventListener("click", () => { ui.pollPanel.hidden = true; });
+
+// Painel de criação: pergunta, de 2 a 10 opções, e a opção de exclusividade
+function addOptionRow(value = "") {
+  const row = document.createElement("div");
+  row.className = "orow";
+  const input = document.createElement("input");
+  input.className = "poll-option";
+  input.value = value;
+  const del = document.createElement("button");
+  del.type = "button";
+  del.className = "odel";
+  del.textContent = "×";
+  del.dataset.i18nAria = "poll.remove";
+  del.setAttribute("aria-label", t("poll.remove"));
+  del.addEventListener("click", () => { row.remove(); refreshPollForm(); });
+  input.addEventListener("input", refreshPollForm);
+  row.append(input, del);
+  ui.pollOptions.append(row);
+}
+
+function resetPollForm(close = false) {
+  ui.pollQuestion.value = "";
+  ui.pollExclusive.checked = false;
+  ui.pollOptions.replaceChildren();
+  for (let i = 0; i < MIN_POLL_OPTIONS; i++) addOptionRow();
+  if (close) ui.pollPanel.hidden = true;
+  refreshPollForm();
+}
+
+// Lê o formulário: { spec } pronto para enviar, ou { error, vars } com o que falta
+function pollFormSpec() {
+  const question = ui.pollQuestion.value.trim();
+  const options = [...ui.pollOptions.querySelectorAll(".poll-option")].map((i) => i.value.trim());
+  if (!question) return { error: "poll.errQuestion" };
+  if (options.some((o) => !o)) return { error: "poll.errOption" };
+  if (new Set(options).size !== options.length) return { error: "poll.errDuplicate" };
+  try {
+    pollData(question, options);
+  } catch {
+    const size = new TextEncoder().encode([question, ...options].join("\0")).length;
+    return { error: "poll.errSize", vars: { n: size } };
+  }
+  return { spec: { kind: "poll", question, options, exclusive: ui.pollExclusive.checked } };
+}
+
+function refreshPollForm() {
+  const rows = ui.pollOptions.querySelectorAll(".orow");
+  rows.forEach((row, i) => {
+    const input = row.querySelector("input");
+    input.placeholder = t("poll.optionPlaceholder", { n: i + 1 });
+    input.setAttribute("aria-label", input.placeholder);
+    row.querySelector(".odel").hidden = rows.length <= MIN_POLL_OPTIONS;
+  });
+  ui.pollAdd.disabled = rows.length >= MAX_POLL_OPTIONS;
+  const question = ui.pollQuestion.value.trim();
+  const options = [...rows].map((r) => r.querySelector("input").value.trim());
+  const size = new TextEncoder().encode([question, ...options].join("\0")).length;
+  ui.pollCount.textContent = `${size}/${MAX_DATA_LENGTH}`;
+  ui.pollCount.classList.toggle("over", size > MAX_DATA_LENGTH);
+  // O gênese define a prova de trabalho no info: a primeira mensagem da sala é sempre de texto
+  ui.pollGenesis.hidden = !(synced && !head);
+  const typed = question || options.some(Boolean);
+  const res = pollFormSpec();
+  ui.pollErr.textContent = typed && res.error ? t(res.error, res.vars) : "";
+  ui.pollCreate.disabled = !synced || !head || pending !== null || !res.spec;
+}
+ui.pollQuestion.addEventListener("input", refreshPollForm);
+ui.pollExclusive.addEventListener("change", refreshPollForm);
+ui.pollAdd.addEventListener("click", () => {
+  addOptionRow();
+  refreshPollForm();
+  ui.pollOptions.lastElementChild.querySelector("input").focus();
+});
+ui.pollForm.addEventListener("submit", (ev) => {
+  ev.preventDefault();
+  const res = pollFormSpec();
+  if (!res.spec || !synced || !head || pending) return;
+  setMsgError();
+  queue = [];
+  sendSpec(res.spec, 1).catch((err) => setMsgError(null, {}, err.message));
+});
+onLangChange(refreshPollForm);
 
 // --- conexão ---------------------------------------------------------------
 let ws = null;
@@ -461,13 +743,16 @@ function onNotice(text) {
     if (pending && (n.error === "NO_HASH_CONTINUITY" || n.error === "NO_TIMESTAMP_CONTINUITY")) {
       return retry();
     }
+    // Recusa sem reenvio (DUPLICATE_VOTE, INVALID_VOTE e as outras): a fila não faz mais sentido
     setMsgError("status.rejected", { code: n.error });
     pending = null;
+    queue = [];
     updateCount();
   } else if (n.type === "error") {
     if (pending?.fraud) setFraudResult("fraud.error", "bad", { code: n.error });
     else setMsgError("status.error", { code: n.error });
     pending = null;
+    queue = [];
     updateCount();
   }
 }
@@ -491,6 +776,10 @@ function updateCount() {
   const badBits = !head && chosenBits() === null;
   ui.workBits.classList.toggle("over", badBits);
   ui.send.disabled = !synced || pending !== null || isBlank(ui.text.value) || n > MAX_DATA_LENGTH || badBits;
+  ui.plus.disabled = !synced;
+  if (!synced) closePlusMenu();
+  refreshPollForm();
+  for (const index of pollCards.keys()) paintPoll(index);
 }
 
 // N digitado para o gênese: inteiro de 0 a MAX_WORK_BITS, ou null
@@ -511,18 +800,35 @@ function setMining(tries) {
   }
 }
 
+// O que vai no bloco: { kind: "text", text }, { kind: "poll", question, options, exclusive } ou
+// { kind: "vote", poll, option, cast }
+function fillBlock(block, spec) {
+  if (spec.kind === "poll") uploadPoll(block, spec.question, spec.options, spec.exclusive);
+  else if (spec.kind === "vote") uploadVote(block, spec.poll, spec.option, spec.cast);
+  else uploadString(block, spec.text);
+}
+
 // Monta o bloco, faz a prova de trabalho (varia o nonce até a assinatura começar com N bits zero) e envia. Se a cabeça
 // mudar no meio (outro aparelho encadeou antes), recomeça sobre a nova; sem conexão, o reenvio fica para depois do
-// histórico (onBlocks)
-async function sendText(text, tries) {
+// histórico (onBlocks). Enquetes e votos são conferidos antes contra a cópia local: um voto que deixou de valer (ou
+// uma enquete com a cadeia vazia) não é enviado
+async function sendSpec(spec, tries) {
   const startHead = head;
   const block = nextBlock(head, nowNs());
-  uploadString(block, text);
+  fillBlock(block, spec);
   const bits = head ? workBits : chosenBits();
-  if (!head) block.info = bits;
+  if (!head && spec.kind === "text") block.info = bits;
   block.author = keyPair.publicKey.slice();
+  const localErr = spec.kind === "text" ? null : tally.check(height, block);
+  if (localErr) {
+    setMsgError("status.rejected", { code: localErr });
+    pending = null;
+    queue = [];
+    updateCount();
+    return;
+  }
   const token = {};
-  pending = { text, sig: null, tries, mining: token };
+  pending = { spec, text: spec.text, sig: null, tries, mining: token };
   updateCount();
   const current = () => pending?.mining === token;
   const bytes = await mineBlock(block, keyPair.secretKey, bits, {
@@ -532,7 +838,7 @@ async function sendText(text, tries) {
   if (!current()) return; // outro envio tomou o lugar deste
   setMining(null);
   if (!bytes) {
-    if (synced) sendText(text, tries);
+    if (synced) sendSpec(spec, tries);
     return;
   }
   pending.sig = block.sig;
@@ -547,7 +853,12 @@ function retry() {
     updateCount();
     return;
   }
-  sendText(pending.text, pending.tries + 1);
+  sendSpec(pending.spec, pending.tries + 1);
+}
+
+function sendQueued() {
+  if (pending || !synced || !queue.length) return;
+  sendSpec(queue.shift(), 1);
 }
 
 // --- teste de fraude -------------------------------------------------------
@@ -710,8 +1021,9 @@ ui.form.addEventListener("submit", (ev) => {
   const text = ui.text.value;
   if (!synced || pending || isBlank(text)) return;
   setMsgError();
-  (fraudOn ? sendFraud() : sendText(text, 1)).catch((err) => setMsgError(null, {}, err.message));
+  (fraudOn ? sendFraud() : sendSpec({ kind: "text", text }, 1)).catch((err) => setMsgError(null, {}, err.message));
 });
 ui.workBits.addEventListener("input", () => { updateCount(); refreshFraud(); });
 
+resetPollForm();
 connect();

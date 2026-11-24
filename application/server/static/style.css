@@ -119,6 +119,49 @@ main { flex: 1; overflow-y: auto; padding: 12px 16px; }
 #work-bits.over { outline: 2px solid var(--bad); }
 #mining { padding: 6px 16px 0; font-size: 13px; color: var(--muted); }
 #mining[hidden] { display: none; }
+/* Botão "+" e o menu dele, acima da barra de mensagem */
+#form { position: relative; }
+#plus { padding: 4px 12px; font-size: 20px; line-height: 1; background: var(--bg); color: var(--fg); }
+#plus-menu {
+  position: absolute; bottom: calc(100% - 4px); left: 16px; z-index: 5; display: flex; flex-direction: column;
+  min-width: 140px; padding: 4px; border-radius: 8px; background: var(--panel); box-shadow: 0 4px 16px rgba(0, 0, 0, .25);
+}
+#plus-menu[hidden] { display: none; }
+#plus-menu button { text-align: left; background: transparent; color: var(--fg); }
+#plus-menu button:hover, #plus-menu button:focus-visible { background: var(--bg); }
+/* Enquete: uma barra por opção, com a porcentagem e o número de votos ao lado */
+.msg.poll-msg { min-width: min(360px, 100%); }
+.poll .plabel { font-size: 12px; color: var(--muted); }
+.poll .q { font-weight: 700; margin: 2px 0 6px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.poll .opt {
+  position: relative; display: flex; justify-content: space-between; gap: 12px; width: 100%; margin: 4px 0;
+  padding: 6px 10px; overflow: hidden; text-align: left; background: var(--bg); color: var(--fg);
+}
+.poll .opt .fill { position: absolute; inset: 0 auto 0 0; width: 0; background: var(--accent); opacity: .28; transition: width .3s; }
+.poll .opt .oname, .poll .opt .onum { position: relative; overflow-wrap: anywhere; }
+.poll .opt .onum { flex: none; font-variant-numeric: tabular-nums; color: var(--muted); }
+.poll .opt.voted { outline: 2px solid var(--accent); font-weight: 700; }
+.poll .opt.voted .onum { color: var(--fg); }
+.poll .opt:disabled { opacity: 1; cursor: default; }
+.poll .pfoot { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.msg.vote-msg .vote { font-size: 14px; color: var(--muted); }
+.msg.vote-msg .goto { color: inherit; }
+.msg.flash { animation: flash 1.2s; }
+@keyframes flash { from { box-shadow: 0 0 0 3px var(--accent); } to { box-shadow: 0 0 0 3px transparent; } }
+/* Painel de criação da enquete */
+#poll-panel label { margin-top: 12px; }
+#poll-panel label.check { margin-top: 12px; font-size: 14px; }
+#poll-question, .poll-option { width: 100%; font: inherit; padding: 8px 10px; border: 0; border-radius: 6px; background: var(--bg); color: var(--fg); }
+#poll-question:focus, .poll-option:focus { outline: 2px solid var(--accent); }
+.orow { display: flex; gap: 6px; margin: 0 0 6px; }
+.orow .odel { padding: 2px 10px; background: var(--bg); color: var(--muted); }
+.orow .odel[hidden] { display: none; }
+#poll-add { padding: 4px 10px; font-size: 13px; background: var(--bg); color: var(--fg); }
+#poll-err { min-height: 1.4em; margin: 8px 0; font-size: 13px; font-weight: 700; color: var(--bad); }
+#poll-genesis[hidden] { display: none; }
+.poll-foot { display: flex; justify-content: space-between; align-items: center; }
+#poll-count { font-size: 12px; color: var(--muted); }
+#poll-count.over { color: var(--bad); }
 #count { align-self: center; font-size: 12px; color: var(--muted); min-width: 4.5em; text-align: right; }
 #count.over { color: var(--bad); }
 button {

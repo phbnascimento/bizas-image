@@ -89,6 +89,13 @@ também responde 200; senão, responde 503 `validator unavailable`
 
 O formato do bloco, os códigos de recusa e a regra do relógio estão em [`docs/protocol.md`](../protocol.md).
 
+**Enquetes.** Uma extensão do chat, fora do protocolo em si, usa só os campos livres do bloco: o `type` `POLL` (7)
+leva a pergunta e as opções, e o `type` `VOTE` (8) leva um voto ou a retirada dele, com o índice do bloco da enquete no
+`info`. O validator confere as enquetes e os votos contra o estado da cadeia até ali
+([`application/bizas/poll.go`](../../application/bizas/poll.go)): ninguém vota duas vezes na mesma opção, e, numa
+enquete exclusiva, ninguém tem mais de um voto ativo. É um *soft fork*: as cadeias válidas com a extensão também são
+válidas para um validator sem ela.
+
 ## 1.4 Fluxo de inicialização
 
 ![Fluxo de inicialização do Bizas](img/boot.svg)

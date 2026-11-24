@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -671,5 +672,139 @@ func TestArchiveChain(t *testing.T) {
 	}
 	if _, err := os.Stat(empty); err != nil {
 		t.Fatal("the empty chain file was removed")
+	}
+}
+
+// pollBlock e voteBlock montam blocos de enquete sobre prev (sem mineração: a cadeia de teste tem N = 0)
+func pollBlock(t *testing.T, k PrivateKey, prev *Block, exclusive bool, question string, options ...string) Block {
+	t.Helper()
+	b := NextBlock([]Block{*prev})
+	b.Stamp = prev.Stamp + 1
+	if err := b.UploadPoll(question, options, exclusive); err != nil {
+		t.Fatal(err)
+	}
+	b.Sign(k)
+	return b
+}
+
+func voteBlock(k PrivateKey, prev *Block, poll uint32, option byte, cast bool) Block {
+	b := NextBlock([]Block{*prev})
+	b.Stamp = prev.Stamp + 1
+	b.UploadVote(poll, option, cast)
+	b.Sign(k)
+	return b
+}
+
+// Enquetes no validator: as recusas, a troca de voto em dois blocos, a enquete não exclusiva, a falha de gravação (o
+// voto não conta) e a partida (o estado é refeito do arquivo)
+func TestPolls(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "chain.bin")
+	c, _ := OpenChain(path, quietLog)
+	a, b := key(t, 1), key(t, 2)
+	g := block(t, a, nil, "genesis")
+	mustAppend(t, c, g)
+	excl := pollBlock(t, a, &g, true, "Where?", "Pizza", "Sushi") // bloco 1
+	mustAppend(t, c, excl)
+	many := pollBlock(t, b, &excl, false, "Which?", "Red", "Green", "Blue") // bloco 2
+	mustAppend(t, c, many)
+
+	last := many
+	push := func(blk Block, want ValidationError) {
+		t.Helper()
+		verr, _, err := c.Append(blk)
+		if verr != want || err != nil {
+			t.Fatalf("Append = %v, %v; want %v", verr, err, want)
+		}
+		if want == None {
+			last = blk
+		}
+	}
+	push(voteBlock(a, &last, 1, 0, true), None)
+	push(voteBlock(a, &last, 1, 0, true), DuplicateVote)
+	push(voteBlock(a, &last, 1, 1, true), DuplicateVote) // exclusiva: trocar de opção exige retirar antes
+	push(voteBlock(a, &last, 1, 0, false), None)
+	push(voteBlock(a, &last, 1, 1, true), None)
+	push(voteBlock(a, &last, 2, 0, true), None) // não exclusiva: várias opções da mesma pessoa
+	push(voteBlock(a, &last, 2, 2, true), None)
+	push(voteBlock(a, &last, 2, 2, true), DuplicateVote)
+	push(voteBlock(b, &last, 2, 2, true), None)
+	push(voteBlock(b, &last, 2, 1, false), InvalidVote)
+	push(voteBlock(b, &last, 0, 0, true), InvalidVote) // o bloco 0 não é enquete
+	if got := fmt.Sprint(c.tally.Counts(1), c.tally.Counts(2)); got != "[0 1] [1 0 2]" {
+		t.Fatalf("counts %s", got)
+	}
+
+	// Falha de escrita: o voto não entra no estado, e o mesmo voto é aceito depois
+	c.file.Close()
+	ro, err := os.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.file = ro
+	v := voteBlock(b, &last, 1, 0, true)
+	if verr, _, err := c.Append(v); !errors.Is(err, ErrStorage) || verr != None {
+		t.Fatalf("Append = %v, %v; want ErrStorage", verr, err)
+	}
+	if got := fmt.Sprint(c.tally.Counts(1)); got != "[0 1]" {
+		t.Fatalf("a vote that was not written was counted: %s", got)
+	}
+	ro.Close()
+	rw, err := os.OpenFile(path, os.O_RDWR|os.O_APPEND, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.file = rw
+	push(v, None)
+	c.Close()
+
+	// Partida: o estado vem do arquivo, e as mesmas recusas continuam valendo
+	c2, err := OpenChain(path, quietLog)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c2.Close()
+	if got := fmt.Sprint(c2.tally.Counts(1), c2.tally.Counts(2)); got != "[1 1] [1 0 2]" {
+		t.Fatalf("counts after reopening %s", got)
+	}
+	c = c2
+	push(voteBlock(b, &last, 1, 1, true), DuplicateVote)
+
+	// O validator verify aplica as mesmas regras: um voto duplicado no meio invalida a cadeia ali
+	blocks, _ := ParseChain(c2.Bytes())
+	dup := voteBlock(a, &blocks[len(blocks)-1], 2, 0, true)
+	if verr, idx := VerifyChain(append(blocks, dup)); verr != DuplicateVote || idx != len(blocks) {
+		t.Fatalf("VerifyChain = %v at %d; want DUPLICATE_VOTE at %d", verr, idx, len(blocks))
+	}
+}
+
+// Cadeia gravada por um validator anterior às enquetes, com um bloco de tipo POLL que não segue o formato (o teste de
+// fraude edita o type): na partida, ele e os seguintes vão para a quarentena, sem apagar nada
+func TestOldChainWithMalformedPollQuarantined(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "chain.bin")
+	a := key(t, 1)
+	g := block(t, a, nil, "genesis")
+	bad := NextBlock([]Block{g})
+	bad.Stamp = g.Stamp + 1
+	if err := bad.UploadBytes([]byte("not a poll"), Poll); err != nil {
+		t.Fatal(err)
+	}
+	bad.Sign(a)
+	after := block(t, a, &bad, "after")
+	raw := append(append(g.MarshalBinary(), bad.MarshalBinary()...), after.MarshalBinary()...)
+	if err := os.WriteFile(path, raw, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	c, err := OpenChain(path, quietLog)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	q, _ := filepath.Glob(path + ".quarantine-*")
+	if c.Len() != 1 || len(q) != 1 {
+		t.Fatalf("kept %d blocks, quarantine files %v", c.Len(), q)
+	}
+	moved, _ := os.ReadFile(q[0])
+	if !bytes.Equal(moved, raw[BlockSize:]) {
+		t.Fatal("quarantine does not hold the malformed poll and the block after it")
 	}
 }
