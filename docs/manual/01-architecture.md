@@ -144,8 +144,15 @@ A medição vale para boots frios, depois do provisionamento do primeiro boot.
 
 ## 1.5 Acesso de manutenção
 
-- **Console:** HDMI (`tty1`) ou serial (`ttyAMA0`, 115200 baud). O login é `root`, senha `bizasprotocol`.
-  A imagem guarda só o hash SHA-256 crypt da senha em `/etc/shadow`.
+- **Console:** HDMI (`tty1`) ou serial (`ttyAMA0`, 115200 baud). Há dois logins, `root` e `anon`, os dois com a
+  senha `bizasprotocol`; o `anon` não tem privilégios (fora do grupo do Docker) e não roda os comandos de manutenção.
+  A imagem guarda só o hash SHA-256 crypt das senhas em `/etc/shadow`.
+- **Boas-vindas:** antes do login, o console mostra a arte do Bizas (em magenta), "Bem-vindo! bizas vN.N" (a versão é o `VERSION` do
+  `docker/version.env`, lida a cada build, então não fica atrasada) e a tabela de nomes e RAs dos integrantes (em amarelo). O
+  `/etc/issue` é gerado por [`scripts/lib/make-issue.py`](../../scripts/lib/make-issue.py), que dobra os `\` e os `%`
+  da arte, porque o `getty` os trata como escape.
+- **Prompt:** `diretório β `, com o diretório atual em amarelo claro e o β em magenta e negrito
+  ([`rootfs-overlay/etc/profile.d/prompt.sh`](../../rootfs-overlay/etc/profile.d/prompt.sh)).
 - **Sem SSH:** a imagem não tem servidor SSH. A manutenção exige acesso físico à placa.
 - **Comandos:** `set-date AAAA-MM-DD-hh-mm-ss [--tz FUSO]` informa a hora real à página (fuso padrão UTC);
   `set-auto-date` consulta a hora por SNTP em `pool.ntp.org`, `time.google.com` e `time.cloudflare.com`.

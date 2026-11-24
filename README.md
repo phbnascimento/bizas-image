@@ -84,6 +84,14 @@ aplicação precisa (`buildroot-external/board/bizas/rpi4/buildroot.fragment`):
   `disable_splash=1` e `boot_delay=0`; o `cmdline.txt` com `quiet loglevel=3`.
 - **Acesso de manutenção:** pelo console (HDMI ou serial), usuário `root`, senha `bizasprotocol`. O
   Buildroot grava só o hash da senha (SHA-256 crypt) no `/etc/shadow`.
+- **Usuário padrão:** `anon`, senha `bizasprotocol`, sem privilégios (não está no grupo do Docker e não usa
+  `reset-chat`, `set-date` nem `set-auto-date`, que são do `root`). É criado no build por
+  `buildroot-external/board/bizas/rpi4/users.txt`.
+- **Boas-vindas do console:** antes do login aparecem a arte do Bizas (`assets/bizas-ascii-20lines.txt`, em magenta), "Bem-vindo!
+  bizas vN.N" e a tabela de nomes e RAs (em amarelo). O `/etc/issue` é gerado no build por `scripts/lib/make-issue.py`, com a
+  versão do `docker/version.env`; não se edita à mão.
+- **Prompt do shell:** `diretório β `, com o diretório atual em amarelo claro e o β em magenta e negrito
+  (`rootfs-overlay/etc/profile.d/prompt.sh`), igual para `root` e `anon`.
 - **A aplicação:** o `post-build.sh` copia para `/opt/bizas` os tars arm64 dos containers, o
   `provision.sh` e o `version.env`. Antes, confere que cada tar tem o SHA-256 registrado em
   `evidence/hashes-containers.txt` e que é mesmo uma imagem `linux/arm64`.

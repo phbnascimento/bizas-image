@@ -1,0 +1,5 @@
+# Usuários criados no build (formato do mkusers do Buildroot):
+# username uid group gid password home shell groups comment
+# O "=" no início da senha indica texto claro; o Buildroot grava só o hash no /etc/shadow
+# Sem grupos extras: o anon não tem acesso ao Docker, que equivaleria a root
+anon -1 anon -1 =bizasprotocol /home/anon /bin/sh - Default user

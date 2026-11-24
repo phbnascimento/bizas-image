@@ -10,6 +10,8 @@ BR2_TARGET_GENERIC_ISSUE="Bizas"
 # Senha do root para manutenção pelo console. Em texto claro aqui; o Buildroot grava só o hash (SHA-256 crypt, padrão
 # de BR2_TARGET_GENERIC_PASSWD_METHOD) no /etc/shadow da imagem
 BR2_TARGET_GENERIC_ROOT_PASSWD="bizasprotocol"
+# Usuário padrão sem privilégios (anon), criado no build pela tabela abaixo
+BR2_ROOTFS_USERS_TABLES="$(BR2_EXTERNAL_BIZAS_PATH)/board/bizas/rpi4/users.txt"
 BR2_ROOTFS_OVERLAY="$(BR2_EXTERNAL_BIZAS_PATH)/../rootfs-overlay"
 # O primeiro é o da Raspberry (console no tty1); o segundo embarca os tars dos containers e o provisionamento
 BR2_ROOTFS_POST_BUILD_SCRIPT="board/raspberrypi4-64/post-build.sh $(BR2_EXTERNAL_BIZAS_PATH)/board/bizas/rpi4/post-build.sh"

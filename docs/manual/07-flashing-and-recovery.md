@@ -60,7 +60,7 @@ seguinte tenta de novo:
 
 - **Console HDMI:** monitor e teclado na placa; login em `tty1`.
 - **Console serial:** `ttyAMA0` a 115200 baud, nos GPIOs 14 e 15 (seção 4.1).
-- **Usuário:** `root`, senha `bizasprotocol`. Não há SSH.
+- **Usuários:** `root` e `anon`, os dois com a senha `bizasprotocol`; o `anon` não tem privilégios. Não há SSH.
 
 Comandos úteis no console:
 

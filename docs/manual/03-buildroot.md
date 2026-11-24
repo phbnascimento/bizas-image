@@ -20,7 +20,7 @@ As customizações ficam num `BR2_EXTERNAL` próprio (`buildroot-external/`, nom
 - **Boot** é o raciocínio técnico sobre o efeito no tempo de inicialização. Não é uma medida.
 - **Licença** vem do `make legal-info` (capítulo 5).
 
-O defconfig gravado tem 41 linhas. Comparado com o `raspberrypi4_64_defconfig`, ele tem as 11 opções
+O defconfig gravado tem 42 linhas. Comparado com o `raspberrypi4_64_defconfig`, ele tem as 12 opções
 abaixo, todas do fragmento.
 
 ## 3.2 Opções alteradas pelo projeto
@@ -40,16 +40,16 @@ abaixo, todas do fragmento.
 
 ### `BR2_TARGET_GENERIC_ISSUE`
 
-| Campo                 | Conteúdo                                                      |
-|-----------------------|---------------------------------------------------------------|
-| Caminho no menuconfig | System configuration → System banner                          |
-| Valor                 | `"Bizas"` (padrão do Buildroot: `"Welcome to Buildroot"`)     |
-| Motivo                | Mensagem do `/etc/issue`, mostrada antes do login no console. |
-| Dependências          | `BR2_ROOTFS_SKELETON_DEFAULT`                                 |
-| Tamanho               | nenhum efeito mensurável                                      |
-| Boot                  | nenhum                                                        |
-| Segurança             | nenhum                                                        |
-| Licença               | nenhum                                                        |
+| Campo                 | Conteúdo                                                                                                                                                                                             |
+|-----------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Caminho no menuconfig | System configuration → System banner                                                                                                                                                                 |
+| Valor                 | `"Bizas"` (padrão do Buildroot: `"Welcome to Buildroot"`)                                                                                                                                            |
+| Motivo                | Mensagem do `/etc/issue`, mostrada antes do login no console. O `post-build.sh` do projeto a substitui pelas boas-vindas com a arte, a versão e os integrantes; esta opção só vale se ele não rodar. |
+| Dependências          | `BR2_ROOTFS_SKELETON_DEFAULT`                                                                                                                                                                        |
+| Tamanho               | nenhum efeito mensurável                                                                                                                                                                             |
+| Boot                  | nenhum                                                                                                                                                                                               |
+| Segurança             | nenhum                                                                                                                                                                                               |
+| Licença               | nenhum                                                                                                                                                                                               |
 
 ### `BR2_TARGET_GENERIC_ROOT_PASSWD`
 
@@ -63,6 +63,19 @@ abaixo, todas do fragmento.
 | Boot                  | nenhum                                                                                                                                                                                                                    |
 | Segurança             | O `/etc/shadow` guarda só o hash, no método `BR2_TARGET_GENERIC_PASSWD_METHOD="sha-256"` (SHA-256 crypt, `$5$`). A senha está documentada; o login exige acesso físico à placa, porque não há serviço de login pela rede. |
 | Licença               | nenhum                                                                                                                                                                                                                    |
+
+### `BR2_ROOTFS_USERS_TABLES`
+
+| Campo                 | Conteúdo                                                                                                                                                                                                                                                 |
+|-----------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Caminho no menuconfig | System configuration → Path to the users tables                                                                                                                                                                                                          |
+| Valor                 | `"$(BR2_EXTERNAL_BIZAS_PATH)/board/bizas/rpi4/users.txt"` (padrão: vazio)                                                                                                                                                                                |
+| Motivo                | Cria o usuário padrão `anon` (senha `bizasprotocol`, shell `/bin/sh`, home `/home/anon`), sem privilégios, para quem não precisa ser `root` no console. A tabela não o põe em nenhum grupo extra, em especial o do Docker, que equivaleria a ser `root`. |
+| Dependências          | O `mkusers` do Buildroot gera o hash com o `host-mkpasswd`, que o `BR2_TARGET_GENERIC_ROOT_PASSWD` já seleciona.                                                                                                                                         |
+| Tamanho               | nenhum efeito mensurável                                                                                                                                                                                                                                 |
+| Boot                  | nenhum                                                                                                                                                                                                                                                   |
+| Segurança             | O `/etc/shadow` guarda só o hash (SHA-256 crypt), como o do `root`. A senha está documentada; o login exige acesso físico à placa, porque não há SSH.                                                                                                    |
+| Licença               | nenhum                                                                                                                                                                                                                                                   |
 
 ### `BR2_ROOTFS_OVERLAY`
 
@@ -79,16 +92,16 @@ abaixo, todas do fragmento.
 
 ### `BR2_ROOTFS_POST_BUILD_SCRIPT`
 
-| Campo                 | Conteúdo                                                                                                                                                                                          |
-|-----------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Caminho no menuconfig | System configuration → Custom scripts to run before creating filesystem images                                                                                                                    |
-| Valor                 | `"board/raspberrypi4-64/post-build.sh $(BR2_EXTERNAL_BIZAS_PATH)/board/bizas/rpi4/post-build.sh"` (padrão do defconfig da Pi: só o primeiro)                                                      |
-| Motivo                | O primeiro script é o da Raspberry Pi (acrescenta um `getty` no `tty1`). O segundo embarca a aplicação: copia para `/opt/bizas` os tars arm64 dos containers, o `provision.sh` e o `version.env`. |
-| Dependências          | nenhuma no kconfig. O script exige os tars de `scripts/containers-build.sh arm64` e `python3` no host.                                                                                            |
-| Tamanho               | Os dois tars somam 5 927 936 bytes (3 079 680 do server e 2 848 256 do validator). No `graph-size`, os arquivos sem pacote somam 5 937 585 bytes, quase todos desses tars.                        |
-| Boot                  | Nenhum nos boots seguintes. No 1º boot, os tars são carregados pelo `docker load`, fora da medição normal de boot.                                                                                |
-| Segurança             | Antes de copiar, confere que o SHA-256 de cada tar é o registrado em `evidence/hashes-containers.txt` e que a imagem dentro dele é `linux/arm64`; se não for, o build para.                       |
-| Licença               | aplicação do projeto (capítulo 5)                                                                                                                                                                 |
+| Campo                 | Conteúdo                                                                                                                                                                                                                                                                                                                                       |
+|-----------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Caminho no menuconfig | System configuration → Custom scripts to run before creating filesystem images                                                                                                                                                                                                                                                                 |
+| Valor                 | `"board/raspberrypi4-64/post-build.sh $(BR2_EXTERNAL_BIZAS_PATH)/board/bizas/rpi4/post-build.sh"` (padrão do defconfig da Pi: só o primeiro)                                                                                                                                                                                                   |
+| Motivo                | O primeiro script é o da Raspberry Pi (acrescenta um `getty` no `tty1`). O segundo embarca a aplicação: copia para `/opt/bizas` os tars arm64 dos containers, o `provision.sh` e o `version.env`, e gera o `/etc/issue` (boas-vindas do console) com `scripts/lib/make-issue.py`, a partir de `assets/bizas-ascii-20lines.txt` e do `VERSION`. |
+| Dependências          | nenhuma no kconfig. O script exige os tars de `scripts/containers-build.sh arm64` e `python3` no host.                                                                                                                                                                                                                                         |
+| Tamanho               | Os dois tars somam 5 927 936 bytes (3 079 680 do server e 2 848 256 do validator). No `graph-size`, os arquivos sem pacote somam 5 937 585 bytes, quase todos desses tars.                                                                                                                                                                     |
+| Boot                  | Nenhum nos boots seguintes. No 1º boot, os tars são carregados pelo `docker load`, fora da medição normal de boot.                                                                                                                                                                                                                             |
+| Segurança             | Antes de copiar, confere que o SHA-256 de cada tar é o registrado em `evidence/hashes-containers.txt` e que a imagem dentro dele é `linux/arm64`; se não for, o build para.                                                                                                                                                                    |
+| Licença               | aplicação do projeto (capítulo 5)                                                                                                                                                                                                                                                                                                              |
 
 ### `BR2_LINUX_KERNEL_CONFIG_FRAGMENT_FILES`
 

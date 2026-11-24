@@ -50,6 +50,41 @@ if command -v openssl >/dev/null; then
     && ok "root password is bizasprotocol" || fail "root password hash does not match bizasprotocol"
 fi
 
+# Boas-vindas do console: o issue da imagem é o que o gerador faz da arte e da VERSION, e mostra a versão e os RAs
+ISSUE_WANT="$(python3 -I "$ROOT/scripts/lib/make-issue.py" "$ROOT/assets/bizas-ascii-20lines.txt" "$(sed -n 's/^VERSION=//p' "$ROOT/docker/version.env")")"
+ISSUE_GOT="$(rd 'cat /etc/issue')"
+[ "$ISSUE_GOT" = "$ISSUE_WANT" ] && ok "/etc/issue is the welcome banner for $(sed -n 's/^VERSION=//p' "$ROOT/docker/version.env")" \
+  || fail "/etc/issue differs from the welcome banner (art, version and members)"
+for ra in 226146 226013 226326 230610; do
+  echo "$ISSUE_GOT" | grep -q "[[:space:]]$ra\$" && ok "/etc/issue lists RA $ra" || fail "/etc/issue does not list RA $ra"
+done
+# Cores: a arte em magenta (ESC[35m), o texto em amarelo claro (ESC[93m) e o reset antes do login (ESC[m, numa linha só)
+printf '%s\n' "$ISSUE_GOT" | head -1 | grep -q "^$(printf '\033')\[35m" && ok "/etc/issue starts the art in magenta" \
+  || fail "/etc/issue does not start the art in magenta"
+printf '%s\n' "$ISSUE_GOT" | grep -q "^$(printf '\033')\[93m\$" && ok "/etc/issue sets the text in yellow" \
+  || fail "/etc/issue does not set the text in yellow"
+printf '%s\n' "$ISSUE_GOT" | tail -1 | grep -q "^$(printf '\033')\[m\$" && ok "/etc/issue resets the color at the end" \
+  || fail "/etc/issue does not reset the color at the end"
+echo "$ISSUE_GOT" | grep -q "^  Bem-vindo! bizas v$(sed -n 's/^VERSION=//p' "$ROOT/docker/version.env")\$" \
+  && ok "/etc/issue greets with the current version" || fail "/etc/issue does not greet with the current version"
+
+# Usuário padrão anon: sem privilégios (uid acima de 0), shell /bin/sh, home criado e a senha documentada
+ANON_PASSWD="$(rd 'cat /etc/passwd' | grep '^anon:' || true)"
+case "$ANON_PASSWD" in
+  anon:x:[1-9]*:*:*:/home/anon:/bin/sh) ok "user anon: ${ANON_PASSWD#anon:x:}" ;;
+  *) fail "user anon in /etc/passwd: '${ANON_PASSWD:-missing}'" ;;
+esac
+SHADOW_ANON="$(rd 'cat /etc/shadow' | grep '^anon:' | cut -d: -f2 || true)"
+if command -v openssl >/dev/null; then
+  SALT="$(echo "$SHADOW_ANON" | cut -d'$' -f3)"
+  case "$SHADOW_ANON" in '$5$'*) [ "$(openssl passwd -5 -salt "$SALT" bizasprotocol)" = "$SHADOW_ANON" ] \
+    && ok "anon password is bizasprotocol" || fail "anon password hash does not match bizasprotocol" ;;
+    *) fail "anon password field in /etc/shadow: '${SHADOW_ANON:-empty}'" ;; esac
+fi
+[ -n "$(mode /home/anon)" ] && ok "/home/anon exists" || fail "/home/anon missing"
+[ "$(rd 'cat /etc/profile.d/prompt.sh')" = "$(cat "$ROOT/rootfs-overlay/etc/profile.d/prompt.sh")" ] \
+  && ok "/etc/profile.d/prompt.sh equals the overlay" || fail "/etc/profile.d/prompt.sh differs from the overlay or is missing"
+
 for f in etc/init.d/S99bizas usr/bin/set-date usr/bin/set-auto-date usr/bin/reset-chat; do
   m="$(mode "/$f")"
   [ "$m" = 755 ] && ok "/$f mode 755" || fail "/$f mode ${m:-missing}"

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Embarca a aplicação no rootfs: copia os tars dos containers (arm64), o docker/provision.sh e o docker/version.env
-# para /opt/bizas, de onde o /etc/init.d/S99bizas os usa no 1º boot
+# para /opt/bizas, de onde o /etc/init.d/S99bizas os usa no 1º boot. Também gera o /etc/issue (boas-vindas do console)
+# com a versão do docker/version.env, para ela nunca ficar atrasada
 #
 # Os tars não ficam no Git nem no overlay: são gerados por scripts/containers-build.sh arm64, que grava o SHA-256 de
 # cada um em evidence/hashes-containers.txt. Aqui se confere que o tar embarcado é exatamente o registrado e que é
@@ -40,4 +41,6 @@ for img in "$IMG_VALIDATOR" "$IMG_SERVER"; do
 done
 install -m 0755 "$ROOT/docker/provision.sh" "$DEST/provision.sh"
 install -m 0644 "$ROOT/docker/version.env" "$DEST/version.env"
+# A arte vem de assets/; o gerador dobra os \ e os %, que o getty trata como escape
+python3 -I "$ROOT/scripts/lib/make-issue.py" "$ROOT/assets/bizas-ascii-20lines.txt" "$VERSION" > "$TARGET/etc/issue"
 echo "post-build: application installed in /opt/bizas ($IMG_VALIDATOR and $IMG_SERVER $VERSION)"
