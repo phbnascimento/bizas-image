@@ -209,3 +209,19 @@ As seis sabotagens da linha do `validator verify` à do `integrity` foram execut
 restaurado em seguida: o `git status` ficou limpo e o `configure-buildroot.sh` voltou a `configuration OK`. A
 sabotagem do `reset-chat`, as das enquetes, a do painel do bloco e as do `anon`, do prompt e das boas-vindas também foram executadas em 23/11/2026, e cada
 arquivo sabotado foi restaurado da cópia.
+
+## 6.10 Script de medição do boot
+
+O `scripts/measure-boot.sh` (capítulo 8, seção 8.6) foi exercitado no PC, com o `scripts/dev-server.sh` em outra porta
+fazendo o papel da placa: o servidor sobe um tempo depois de o script começar a contar, como a placa depois de
+energizada. Isso confere o comportamento do script, não o tempo de boot.
+
+| Situação                                 | Resultado do script                                                                                   |
+|------------------------------------------|-------------------------------------------------------------------------------------------------------|
+| o servidor sobe 1 s depois do Enter      | `First 200 at 1.93 s → pass`, linha `pass` no CSV                                                     |
+| o servidor sobe 17 s depois do Enter     | `First 200 at 17.17 s → FAIL`, linha `FAIL` no CSV                                                    |
+| nada responde                            | `no answer within 60 s` e código de saída 2, linha `no-response` (60,04 s) no CSV                     |
+| a URL já responde quando o script começa | `WARNING: … already answers. Is the board still on?` e código de saída 1, sem linha no CSV            |
+| o CSV fica numa pasta que não existe     | a pasta é criada, e a linha é gravada (antes, o script parava com "Arquivo ou diretório inexistente") |
+
+As duas respostas, `pass` e `FAIL`, saíram do mesmo script com a mesma regra de 15,0 s.

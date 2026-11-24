@@ -16,6 +16,7 @@ LIMIT=60
 now() { date +%s.%N; }
 elapsed() { awk -v a="$1" -v b="$(now)" 'BEGIN{printf "%.2f", b-a}'; }
 
+mkdir -p "$(dirname "$CSV")"
 [ -f "$CSV" ] || echo "datetime,url,seconds,result" > "$CSV"
 
 if curl -s -o /dev/null --max-time 1 "$URL"; then
