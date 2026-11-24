@@ -57,12 +57,12 @@ No rootfs, os arquivos do toolchain (bibliotecas de runtime) somam 5 638 516 byt
 
 ## 5.3 Software na placa, da aplicação
 
-Os containers `bizas-validator:0.3` e `bizas-server:0.3` são `FROM scratch`: cada um tem só o binário
+Os containers `bizas-validator:0.4` e `bizas-server:0.4` são `FROM scratch`: cada um tem só o binário
 `/app`, compilado estaticamente (`CGO_ENABLED=0`). Dentro deles vão:
 
 | Componente                                       | Versão    | Licença      | Fonte                                                    | Integridade                                                       |
 |--------------------------------------------------|-----------|--------------|----------------------------------------------------------|-------------------------------------------------------------------|
-| Código do Bizas                                  | 0.3       | —            | este repositório (`application/`)                        | SHA-256 dos tars em `evidence/hashes-containers.txt`              |
+| Código do Bizas                                  | 0.4       | —            | este repositório (`application/`)                        | SHA-256 dos tars em `evidence/hashes-containers.txt`              |
 | Biblioteca padrão do Go (compilada nos binários) | Go 1.27.3 | BSD-3-Clause | imagem `golang:1.27.3-alpine`                            | imagem fixada por digest (5.4)                                    |
 | `github.com/coder/websocket` (só no server)      | v1.8.15   | ISC          | `application/vendor/`, declarado em `application/go.mod` | `application/go.sum`                                              |
 | `tweetnacl-js`, `nacl-fast.min.js` (página)      | 1.0.3     | Unlicense    | registro do npm, pacote `tweetnacl`                      | SHA-256 `3ec535c0…a5131` em `application/server/tweetnacl.sha256` |
@@ -106,7 +106,7 @@ containers) e, só nos testes, o Deno, o Firefox e o `zbarimg`. Nenhum deles vai
 | Buildroot 2026.05.1 e o SHA-256 do tarball                 | `scripts/fetch-buildroot.sh`                                                                                   |
 | Configuração do Buildroot                                  | `buildroot-external/configs/bizas_rpi4_defconfig`                                                              |
 | Kernel (commit) e firmware (commit)                        | herdados do `raspberrypi4_64_defconfig`, com hash conferido pelo Buildroot (`BR2_DOWNLOAD_FORCE_CHECK_HASHES`) |
-| Versão dos containers (`0.3`) e imagem `golang` por digest | `docker/version.env`                                                                                           |
+| Versão dos containers (`0.4`) e imagem `golang` por digest | `docker/version.env`                                                                                           |
 | Módulos Go                                                 | `application/go.mod`, `application/go.sum` e `application/vendor/`                                             |
 | `tweetnacl` 1.0.3 e `qrcode-generator` 1.4.4               | `integrity` em `scripts/fetch-*.sh`, SHA-256 em `application/server/*.sha256`                                  |
 

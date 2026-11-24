@@ -81,7 +81,7 @@
   <text class="k" x="300" y="376">server → validator: POST /blocks, GET /chain</text>
 
   <rect class="ctr" x="54" y="388" width="290" height="186" rx="8"/>
-  <text class="s" x="68" y="410">bizas-validator:0.3</text>
+  <text class="s" x="68" y="410">bizas-validator:0.4</text>
   <text class="k" x="68" y="430">dono da cadeia: confere e grava</text>
   <text class="v" x="68" y="452">:8081 (só na bizas-net,</text>
   <text class="v" x="68" y="470">alias validator)</text>
@@ -91,7 +91,7 @@
   <text class="k" x="68" y="548">--pids-limit 64 · unless-stopped</text>
 
   <rect class="ctr" x="376" y="388" width="290" height="186" rx="8"/>
-  <text class="s" x="390" y="410">bizas-server:0.3</text>
+  <text class="s" x="390" y="410">bizas-server:0.4</text>
   <text class="k" x="390" y="430">página, WebSocket, repasse</text>
   <text class="v" x="390" y="452">:5000 (publicada 80 → 5000)</text>
   <text class="v" x="390" y="470">127.0.0.1:5001 (manutenção)</text>

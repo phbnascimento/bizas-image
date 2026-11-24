@@ -16,7 +16,7 @@ O Bizas inteiro cabe em **dois binários Go estáticos e uma página**. Não há
 servidor web à parte, CDN nem conta em serviço nenhum.
 
 - **Dois binários, nada mais:** cada container é uma imagem `FROM scratch` com um único arquivo, `/app`: sem
-  shell, sem bibliotecas, sem sistema base. São cerca de 2,8 MB (validator) e 3,1 MB (server) em arm64. O código
+  shell, sem bibliotecas, sem sistema base. São cerca de 2,9 MB (validator) e 3,1 MB (server) em arm64. O código
   usa a biblioteca padrão do Go e uma única dependência externa, `github.com/coder/websocket`.
 - **A cadeia é um arquivo:** o histórico inteiro é `chain.bin`, blocos de 512 bytes um atrás do outro, sem
   índice nem esquema. É o mesmo formato que a página baixa em `/chain` e que o `validator verify` confere em
@@ -49,7 +49,7 @@ Raspberry Pi 4 (4 GB)
 ### Os dois containers
 
 Cada container tem um único binário Go estático, numa imagem `FROM scratch` (sem shell, sem
-bibliotecas): cerca de 2,8 MB e 3,1 MB em arm64.
+bibliotecas): cerca de 2,9 MB e 3,1 MB em arm64.
 
 |               | `bizas-validator`                                        | `bizas-server`                           |
 |---------------|----------------------------------------------------------|------------------------------------------|
