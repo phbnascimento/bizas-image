@@ -35,6 +35,11 @@ Cada mensagem é um bloco de **512 bytes**, com inteiros em little-endian:
 
 - **O que se assina:** os 512 bytes com `sig` zerado. Isso inclui os bytes de `data` além de
   `length`.
+- **Por que layout fixo e little-endian:** é o que torna o protocolo portável entre plataformas distintas. Os bytes
+  assinados têm de ser idênticos em qualquer implementação, então cada campo tem offset e tamanho fixos e a ordem dos
+  bytes dos inteiros é mandatória (little-endian), em vez de depender da máquina, da linguagem ou de uma biblioteca de
+  serialização. O vetor `application/bizas/testdata/vector.txt` prova que o Go e o JavaScript produzem os mesmos
+  bytes e as mesmas assinaturas.
 - **O encadeamento:** é feito pelo campo `prev`, que guarda a **assinatura** do bloco anterior. Não há
   hash separado. Como a assinatura cobre o bloco inteiro, inclusive o `prev` dele, alterar qualquer
   bloco antigo quebra o encadeamento de todos os seguintes.

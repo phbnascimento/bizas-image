@@ -96,6 +96,12 @@ leva a pergunta e as opções, e o `type` `VOTE` (8) leva um voto ou a retirada 
 enquete exclusiva, ninguém tem mais de um voto ativo. É um *soft fork*: as cadeias válidas com a extensão também são
 válidas para um validator sem ela.
 
+**Dados no navegador.** A página guarda no `localStorage`, só no aparelho de cada pessoa, a chave privada
+(`bizas.seed`, a seed de 32 bytes em hexadecimal), o nome, a nota e a cor que ela dá a cada chave pública
+(`bizas.names`, `bizas.notes` e `bizas.hues`) e a língua e o tema (`bizas.lang` e `bizas.theme`). A chave privada
+nunca sai do navegador, e nada disso vai para a cadeia nem para o server. Limpar os dados do site apaga a chave e, com
+ela, a identidade.
+
 ## 1.4 Fluxo de inicialização
 
 ![Fluxo de inicialização do Bizas](img/boot.svg)

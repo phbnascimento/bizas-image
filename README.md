@@ -21,9 +21,10 @@ servidor web à parte, CDN nem conta em serviço nenhum.
 - **A cadeia é um arquivo:** o histórico inteiro é `chain.bin`, blocos de 512 bytes um atrás do outro, sem
   índice nem esquema. É o mesmo formato que a página baixa em `/chain` e que o `validator verify` confere em
   qualquer computador com Go.
-- **Um formato de bloco, duas linguagens:** o bloco tem layout fixo, sem JSON nem serialização ambígua, e o
-  navegador (JavaScript) e o validator (Go) produzem os mesmos bytes e as mesmas assinaturas, provados por um
-  vetor de teste compartilhado.
+- **Um formato de bloco, qualquer plataforma:** o bloco tem layout fixo e inteiros em little-endian por regra, sem
+  JSON nem serialização ambígua. Os bytes e as assinaturas não dependem da linguagem, da arquitetura nem de uma
+  biblioteca: o navegador (JavaScript) e o validator (Go) produzem os mesmos bytes, provados por um vetor de teste
+  compartilhado.
 - **Nada para instalar no aparelho:** quem participa só abre o IP da placa no navegador. A criptografia e o QR
   code vêm embutidos na página, e ela funciona por `http://` na rede local, sem HTTPS e sem internet.
 - **Mesmo código em outras arquiteturas:** o Go compila o mesmo código para as arquiteturas que ele suporta
@@ -126,7 +127,9 @@ scripts/flash-sd.sh                 # grava no microSD e confere lendo de volta
 ```
 
 - **`build-image.sh`:** carrega o `bizas_rpi4_defconfig` e compila. Gera `output/buildroot/images/sdcard.img` e a
-  versão compactada `output/images/bizas-rpi4.img.xz`, com o SHA-256 das duas em `evidence/hashes-image.txt`.
+  versão compactada `output/images/bizas-rpi4.img.xz`, com o SHA-256 das duas em `evidence/hashes-image.txt`. O
+  `bizas-rpi4.img`, que sai de `xz -dk bizas-rpi4.img.xz` (e que a release lista no `SHA256SUMS`), é o próprio
+  `sdcard.img`: o mesmo arquivo, com o mesmo hash, só com outro nome.
 - **`check-image.sh`:** lê o rootfs com `debugfs` e a partição de boot com `mtools`. Confere:
   - `/opt/bizas` e os tars, contra `evidence/`;
   - os scripts de init, as permissões e a senha do root;
@@ -157,6 +160,13 @@ no mesmo lugar os campos do bloco: o valor bruto de cada um (`room`, `stamp`, `n
 nome do tipo e quantos bits zero a assinatura tem. A engrenagem abre as configurações: língua
 (português ou inglês) e tema (claro ou escuro), guardados em `bizas.lang` e `bizas.theme`. O QR code vem do
 `qrcode-generator` (MIT), embutido na página.
+
+O navegador guarda estes dados no `localStorage`, só neste aparelho; nada deles vai para a cadeia nem para o server:
+
+- **`bizas.seed`:** a chave privada (a seed de 32 bytes, em hexadecimal). É a identidade da pessoa: sem ela, não dá
+  para assinar como aquele autor, e limpar os dados do site a apaga, e a identidade junto.
+- **`bizas.names`, `bizas.notes` e `bizas.hues`:** o nome, a nota e a cor que este aparelho dá a cada chave pública.
+- **`bizas.lang` e `bizas.theme`:** a língua e o tema.
 
 Nas configurações, **Enable Fraud Test** expande a barra de baixo e mostra todos os campos do bloco (`room`,
 `stamp`, `nonce`, `info`, `type`, `length`, `author`, `sig`, `prev`), menos o `data`, que é o texto da
@@ -197,10 +207,12 @@ Cada mensagem vira um **bloco de 512 bytes**, com layout fixo e inteiros em litt
 | 320   | `data`   | o texto, em UTF-8                                                           |
 
 - **O que se assina:** os 512 bytes inteiros, com o campo `sig` zerado.
-- **Por que layout fixo:** o navegador (JavaScript) e o servidor (Go) precisam gerar exatamente os
-  mesmos bytes, senão a assinatura não confere. Um vetor de teste compartilhado
-  (`application/bizas/testdata/vector.txt`) prova que os dois lados produzem bytes e assinaturas
-  idênticos.
+- **Por que layout fixo e little-endian:** é o que torna o protocolo portável entre plataformas distintas. Os bytes
+  assinados têm de ser idênticos em qualquer implementação, senão a assinatura não confere. Por isso cada campo tem
+  offset e tamanho fixos, e a ordem dos bytes dos inteiros é mandatória (little-endian), em vez de depender da máquina,
+  da linguagem ou de uma biblioteca de serialização. Hoje há duas implementações, o navegador (JavaScript) e o servidor
+  (Go), e um vetor de teste compartilhado (`application/bizas/testdata/vector.txt`) prova que as duas produzem bytes e
+  assinaturas idênticos.
 
 ### O encadeamento
 

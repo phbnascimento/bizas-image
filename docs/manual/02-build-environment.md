@@ -135,6 +135,9 @@ escrita pelo `build-image.sh`. Para conferir uma cópia baixada:
 sha256sum bizas-rpi4.img.xz        # tem de ser igual à linha de evidence/hashes-image.txt
 ```
 
+O `bizas-rpi4.img` que se obtém com `xz -dk bizas-rpi4.img.xz` é o próprio `sdcard.img`: o mesmo arquivo, com o mesmo
+SHA-256, só com outro nome (a linha `sdcard.img` de `evidence/hashes-image.txt` vale para ele).
+
 O hash identifica o artefato entregue. Ele não serve para comparar dois builds do mesmo código, porque os
 sistemas de arquivos gerados guardam datas do momento do build.
 
