@@ -141,7 +141,7 @@ SHA-256, só com outro nome (a linha `sdcard.img` de `evidence/hashes-image.txt`
 O hash identifica o artefato entregue. Ele não serve para comparar dois builds do mesmo código, porque os
 sistemas de arquivos gerados guardam datas do momento do build.
 
-Tamanhos do último build: `sdcard.img` com 1 107 296 768 bytes e `bizas-rpi4.img.xz` com 81 842 548 bytes.
+Tamanhos do último build: `sdcard.img` com 1 107 296 768 bytes e `bizas-rpi4.img.xz` com 85 583 576 bytes.
 
 ## 2.5 Limpeza e reconstrução
 

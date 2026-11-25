@@ -108,23 +108,32 @@ na enquete do bloco 6) foram acrescentados ao fim dela, minerados com o mesmo N:
 
 Resultado do `check-image.sh`: 123 conferências `ok`, nenhuma `FAIL`, `IMAGE CHECK PASSED`.
 
-**Build do zero.** Os passos da seção 2.4 foram seguidos num container Debian 13 limpo (só os pacotes da seção 2.2,
-mais `docker-cli` e `docker-buildx`), a partir de um clone novo da tag `0.4`, com o kernel e o daemon do Docker do PC:
+**Build do zero.** Os passos da seção 2.4 foram seguidos em 25/11/2026 num container Debian 13 limpo (só os pacotes
+da seção 2.2, mais `docker-cli` e `docker-buildx`), a partir de um clone novo do commit da versão 0.5 (`ad56cbd`), com o
+kernel e o daemon do Docker do PC:
 
 | Passo                       | Tempo   |
 |-----------------------------|--------:|
-| `fetch-buildroot.sh`        | 19 s    |
-| `configure-buildroot.sh`    | 18 s    |
-| `containers-build.sh arm64` | 3 s     |
-| `build-image.sh`            | 1 858 s |
-| `check-image.sh` (85 `ok`)  | 1 s     |
+| `fetch-buildroot.sh`        | 14 s    |
+| `configure-buildroot.sh`    | 17 s    |
+| `containers-build.sh arm64` | 13 s    |
+| `build-image.sh`            | 1 900 s |
+| `check-image.sh` (123 `ok`) | 2 s     |
 
 O Docker do PC já tinha a imagem `golang` e as camadas no cache, então o `containers-build.sh` não parte de um cache
-vazio. A máquina tem 20 threads e 15 GB de RAM. A lista de arquivos do rootfs é a mesma da árvore de trabalho
-(2 155 arquivos); 47 deles têm conteúdo diferente: o BusyBox, as ferramentas do util-linux, o `xz`, o `runc`, os dois
-tars dos containers, o `/etc/shadow` (o hash leva sal) e o `configs.ko.xz`. `/etc/issue`, `/etc/passwd` e o
-`prompt.sh` são iguais. O build do zero não cabe num `/tmp` em tmpfs de 7,7 GB: a primeira tentativa, ali, parou com
-`no space left on device` no `host-go`.
+vazio. A máquina tem 20 threads e 15 GB de RAM. O build do zero não cabe num `/tmp` em tmpfs de 7,7 GB: uma tentativa
+anterior, ali, parou com `no space left on device` no `host-go`.
+
+Comparado com o build da árvore de trabalho:
+
+- **binários `/app` dos containers:** idênticos byte a byte. Os tars têm outro SHA-256 só porque guardam a data de
+  criação da imagem e a data do arquivo;
+- **rootfs:** a mesma lista de arquivos (2 207). 52 têm conteúdo diferente: o BusyBox, as ferramentas do util-linux, o
+  `xz`, o `runc`, o `xtables-legacy-multi`, as bibliotecas do `libnl`, os dois tars, o `/etc/shadow` (o hash leva sal), o
+  `configs.ko.xz` e o `/usr/lib/os-release`, que traz o `git describe` do repositório no momento do build;
+- **arquivos do projeto:** `/etc/issue`, `/etc/passwd`, o `prompt.sh`, o `hostapd.conf`, o `dnsmasq.conf` e o
+  `S39wifi-ap` são iguais;
+- **`evidence/kernel-check-config.txt`:** só muda o caminho do `.config` na primeira linha.
 
 ## 8.4 Containers
 
