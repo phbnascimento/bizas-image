@@ -73,10 +73,32 @@ dispositivo aparece. Nesta imagem, portanto, **nenhum módulo de hardware carreg
 A imagem não depende disso. Os drivers do caminho de boot e de rede estão embutidos no kernel (`=y` no
 `.config` final): Ethernet (`CONFIG_BCMGENET`, `CONFIG_BROADCOM_PHY`, `CONFIG_MDIO_BCM_UNIMAC`), controladores
 do cartão SD (`CONFIG_MMC_SDHCI_IPROC`, `CONFIG_MMC_BCM2835`) e sistemas de arquivos (`CONFIG_EXT4_FS`,
-`CONFIG_VFAT_FS`). O que o Docker usa como módulo é carregado pelo próprio `dockerd` (seção 4.3). Para carregar um módulo no boot, o mecanismo é o `/etc/init.d/S11modules` do
-Buildroot. Ele lê cada arquivo `*.conf` de `/etc/modules-load.d/`, um módulo por linha, e chama
-`modprobe` para cada um. Esse diretório entraria pelo `rootfs-overlay/`. A imagem não traz
-`/etc/modules-load.d/`, e o `S11modules` não carrega nenhum módulo.
+`CONFIG_VFAT_FS`). O que o Docker usa como módulo é carregado pelo próprio `dockerd` (seção 4.3). O
+Buildroot oferece o `/etc/init.d/S11modules`, que lê cada `*.conf` de `/etc/modules-load.d/` e chama `modprobe`
+para cada módulo listado. A imagem não traz `/etc/modules-load.d/`, e o `S11modules` não carrega nenhum módulo:
+o único módulo de hardware que a imagem usa, o do Wi-Fi, é carregado pelo `S39wifi-ap` (abaixo).
+
+### Wi-Fi
+
+O Wi-Fi da Pi 4 é um chip BCM43455 ligado por SDIO. A pilha sem fio vem do `bcm2711_defconfig`, como módulos:
+`CONFIG_CFG80211=m`, `CONFIG_BRCMFMAC=m` e `CONFIG_BRCMFMAC_SDIO=y`. O controlador SDIO e o resto da cadeia de
+hardware já estão embutidos.
+
+- **Quem carrega:** o `/etc/init.d/S39wifi-ap` chama `modprobe brcmfmac` em segundo plano, fora do caminho do
+  boot (capítulo 5). O `modprobe` traz as dependências pelo `modules.dep`.
+- **Submódulo do fabricante:** o `brcmfmac` carrega sozinho o submódulo do chip, por
+  `request_module("brcmfmac-%s")` (`fwvid.c`). Para o 43455, a tabela SDIO do driver indica o `wcc`:
+  `BRCMF_SDIO_DEVICE(SDIO_DEVICE_ID_BROADCOM_43455, WCC)` em `bcmsdh.c`. Por isso o módulo carregado é o
+  `brcmfmac-wcc`.
+- **Firmware:** o driver lê, em tempo de execução, arquivos de `/lib/firmware/brcm/` que o `rpi-firmware` não traz.
+  Eles vêm do pacote `linux-firmware` (`BR2_PACKAGE_LINUX_FIRMWARE_BRCM_BCM43XXX`, capítulo 3):
+  - `brcmfmac43455-sdio.bin` e `brcmfmac43455-sdio.clm_blob`: links para `../cypress/cyfmac43455-sdio.*`;
+  - `brcmfmac43455-sdio.raspberrypi,4-model-b.txt`: a NVRAM da placa.
+- **Domínio regulatório:** o `regulatory.db` do `wireless-regdb` fica em `/lib/firmware/`. O `hostapd.conf` não
+  define `country_code`: o canal 6 de 2,4 GHz é permitido em qualquer domínio.
+
+O `scripts/check-image.sh` confere, na imagem pronta, que os dois módulos estão instalados, que o `brcmfmac`
+está no `modules.dep` e que cada arquivo de firmware, seguidos os links, é um arquivo de verdade (capítulo 8).
 
 ## 4.5 O `check-config.sh` do Docker
 

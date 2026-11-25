@@ -5,7 +5,8 @@
 Imagem Linux própria para a **Raspberry Pi 4**, gerada com **Buildroot** 2026.05.1, que ao ligar sobe sozinha a
 aplicação em **containers Docker**: o **Bizas**, um chat em que cada mensagem é **assinada no aparelho de quem
 escreve** e **encadeada à anterior**, formando um histórico que qualquer pessoa pode verificar. Os participantes
-abrem o IP da placa no navegador; não é preciso instalar nada.
+entram na rede Wi-Fi da própria placa (`BizasChat`) e abrem `http://192.168.50.1` no navegador; não é preciso
+instalar nada.
 
 Projeto final de Sistemas Embarcados (UNISANTA, 2026). A meta central é a aplicação
 **responder em menos de 15 s** depois que a placa é ligada.
@@ -40,7 +41,7 @@ servidor web à parte, CDN nem conta em serviço nenhum.
 Raspberry Pi 4 (4 GB)
 └── Linux próprio, gerado com Buildroot 2026.05.1
     ├── kernel com o necessário para Docker (cgroups, namespaces, overlay, rede)
-    ├── init, rede (Ethernet) e dockerd, iniciados sem login
+    ├── init, rede (Ethernet e o ponto de acesso Wi-Fi BizasChat) e dockerd, iniciados sem login
     └── Docker
         └── rede bizas-net (definida pelo usuário)
             ├── bizas-validator  sem porta no host · volume bizas-data em /data
@@ -80,6 +81,8 @@ aplicação precisa (`buildroot-external/board/bizas/rpi4/buildroot.fragment`):
 - **Docker:** `docker-engine` (dockerd, containerd, runc, iptables) e `docker-cli`.
 - **Kernel:** o fragmento `kernel-config/docker.fragment` garante namespaces, cgroups, veth, bridge,
   netfilter/NAT e overlayfs.
+- **Wi-Fi:** `hostapd` (ponto de acesso), `dnsmasq` (só DHCP), `iw` (diagnóstico), o firmware do chip Wi-Fi da
+  Pi 4 (`linux-firmware`, com as licenças dele em `/lib/firmware`) e o `wireless-regdb`.
 - **rootfs ext4 de 1024 MB**, porque os 120 MB de fábrica não comportam o Docker e as imagens.
 - **`config.txt` e `cmdline.txt` próprios:** o `config.txt` de 64 bits de fábrica, mais
   `disable_splash=1` e `boot_delay=0`; o `cmdline.txt` com `quiet loglevel=3`.
@@ -100,10 +103,32 @@ aplicação precisa (`buildroot-external/board/bizas/rpi4/buildroot.fragment`):
 `scripts/configure-buildroot.sh` aplica o fragmento, confere no `.config` cada opção pedida e grava
 `buildroot-external/configs/bizas_rpi4_defconfig`.
 
+### Rede Wi-Fi
+
+A placa cria a própria rede Wi-Fi, **sem internet**, só para os aparelhos próximos abrirem o chat:
+
+|                         |                                              |
+|-------------------------|----------------------------------------------|
+| Rede (SSID)             | **`BizasChat`**                              |
+| Senha (WPA2)            | **`embarcados2026`**                         |
+| Endereço da página      | **`http://192.168.50.1`**                    |
+| Endereços dos aparelhos | `192.168.50.10` a `192.168.50.100`, por DHCP |
+| Canal                   | 6 (2,4 GHz)                                  |
+
+- **Como entrar:** conecte o aparelho à rede `BizasChat` com a senha acima e abra `http://192.168.50.1`.
+- **Celular com dados móveis:** numa rede sem internet, o celular pode preferir o 4G e não abrir a página.
+  Desligue os dados móveis antes de conectar.
+- **Cabo:** a `eth0` continua ativa, por DHCP; pelo cabo, a página abre no IP que a placa recebeu
+  (`ip addr show eth0` no console).
+- **Onde está:** `rootfs-overlay/etc/hostapd.conf` (rede e senha), `rootfs-overlay/etc/dnsmasq.conf` (DHCP) e
+  `rootfs-overlay/etc/init.d/S39wifi-ap`, que sobe tudo em segundo plano: o init não espera por ele.
+- **No console:** `hostapd_cli all_sta` lista os aparelhos conectados; os endereços entregues ficam em
+  `/var/log/messages`.
+
 ### Boot e provisionamento
 
-- **Ordem:** o init do BusyBox roda os scripts de `/etc/init.d`. O `S60dockerd` inicia o Docker, e o
-  `S99bizas` cuida da aplicação.
+- **Ordem:** o init do BusyBox roda os scripts de `/etc/init.d`. O `S39wifi-ap` sobe o ponto de acesso em
+  segundo plano, o `S60dockerd` inicia o Docker, e o `S99bizas` cuida da aplicação.
 - **1º boot:** o `S99bizas` espera o `dockerd` responder e roda o `/opt/bizas/provision.sh`. Ele
   carrega as imagens com `docker load`, cria a rede, o volume e os containers, e o script grava uma
   marca em `/var/lib/bizas/` quando os dois containers estão rodando. Esse passo é avisado no console
@@ -133,6 +158,7 @@ scripts/flash-sd.sh                 # grava no microSD e confere lendo de volta
 - **`check-image.sh`:** lê o rootfs com `debugfs` e a partição de boot com `mtools`. Confere:
   - `/opt/bizas` e os tars, contra `evidence/`;
   - os scripts de init, as permissões e a senha do root;
+  - o Wi-Fi: rede, senha e DHCP, os programas, o firmware e o driver;
   - `config.txt` e `cmdline.txt`;
   - o kernel, contra o fragmento do Docker e o `check-config.sh` do docker-engine (resultado em
     `evidence/kernel-check-config.txt`);

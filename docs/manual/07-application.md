@@ -46,8 +46,8 @@ porta de manutenção `POST /clock` só dentro do container. As duas estão desc
 
 ## 7.4 Acesso
 
-- **Web:** de qualquer aparelho da mesma rede, `http://<IP da placa>/`. A página funciona por `http://`, sem HTTPS e
-  sem internet. O endereço da placa se descobre no console (`ip addr show eth0`).
+- **Web:** pela rede Wi-Fi da placa (`BizasChat`, senha `embarcados2026`), `http://192.168.50.1/`; pelo cabo, no IP
+  que a `eth0` recebeu (`ip addr show eth0` no console). A página funciona por `http://`, sem HTTPS e sem internet.
 - **Local:** no console da placa (HDMI ou serial), como `root` ou `anon` (capítulo 9). `wget -qO- http://127.0.0.1/health`
   devolve `ok` quando a aplicação inteira responde.
 

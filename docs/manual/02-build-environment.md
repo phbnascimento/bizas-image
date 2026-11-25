@@ -72,25 +72,25 @@ Notas:
 
 ## 2.3 Espaço em disco
 
-Medido com `du -s --block-size=1M` na árvore de trabalho que gerou a imagem 0.4a, com o `make legal-info` já
+Medido com `du -s --block-size=1M` na árvore de trabalho que gerou a imagem atual, com o `make legal-info` já
 executado:
 
 | Diretório                            | Conteúdo                                               | Tamanho    |
 |--------------------------------------|--------------------------------------------------------|-----------:|
-| `buildroot/`                         | árvore do Buildroot 2026.05.1                          | 904 MiB    |
-| `buildroot/dl/` (dentro do anterior) | fontes baixadas pelo Buildroot                         | 834 MiB    |
-| `output/buildroot/`                  | saída do Buildroot (total)                             | 12 048 MiB |
-| `output/buildroot/build/`            | pacotes compilados                                     | 6 648 MiB  |
-| `output/buildroot/host/`             | toolchain e ferramentas de host                        | 3 773 MiB  |
-| `output/buildroot/legal-info/`       | fontes e licenças coletadas pelo `make legal-info`     | 836 MiB    |
-| `output/buildroot/images/`           | `sdcard.img`, `rootfs.ext4`, `boot.vfat`, kernel, DTBs | 578 MiB    |
-| `output/buildroot/target/`           | rootfs antes de ser empacotado                         | 215 MiB    |
-| `output/images/`                     | `bizas-rpi4.img.xz`                                    | 79 MiB     |
+| `buildroot/`                         | árvore do Buildroot 2026.05.1                          | 1 499 MiB  |
+| `buildroot/dl/` (dentro do anterior) | fontes baixadas pelo Buildroot                         | 1 429 MiB  |
+| `output/buildroot/`                  | saída do Buildroot (total)                             | 14 511 MiB |
+| `output/buildroot/build/`            | pacotes compilados                                     | 8 506 MiB  |
+| `output/buildroot/host/`             | toolchain e ferramentas de host                        | 3 775 MiB  |
+| `output/buildroot/legal-info/`       | fontes e licenças coletadas pelo `make legal-info`     | 1 432 MiB  |
+| `output/buildroot/images/`           | `sdcard.img`, `rootfs.ext4`, `boot.vfat`, kernel, DTBs | 574 MiB    |
+| `output/buildroot/target/`           | rootfs antes de ser empacotado                         | 225 MiB    |
+| `output/images/`                     | `bizas-rpi4.img.xz`                                    | 82 MiB     |
 | `output/containers/`                 | tars `docker save` (0.1 a 0.4a, arm64 e amd64)         | 60 MiB     |
 
-Somando, a árvore de trabalho com o build completo ocupa cerca de 13 GiB (não cabe num `/tmp` em tmpfs pequeno), além da imagem `golang` no cache do
+Somando, a árvore de trabalho com o build completo ocupa cerca de 14,5 GiB (não cabe num `/tmp` em tmpfs pequeno), além da imagem `golang` no cache do
 Docker (376 MB, pelo `docker images`). Sem o `legal-info`, que é opcional, a saída do Buildroot fica cerca
-de 0,8 GiB menor.
+de 1,4 GiB menor.
 
 ## 2.4 Do zero até a imagem
 

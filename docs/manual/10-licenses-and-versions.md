@@ -18,7 +18,7 @@ O comando grava em `output/buildroot/legal-info/`:
 - `buildroot.config`: a configuração do Buildroot;
 - `legal-info.sha256`: o SHA-256 de cada arquivo coletado.
 
-O diretório ocupa 836 MiB e não entra no Git: ele é regenerado pelo comando acima.
+O diretório ocupa 1 432 MiB e não entra no Git: ele é regenerado pelo comando acima.
 
 O `legal-info` registra estes avisos, que valem para a imagem atual:
 
@@ -48,12 +48,30 @@ O `legal-info` registra estes avisos, que valem para a imagem atual:
 | `util-linux`                 | 2.41.5                                                      | GPL-2.0+, BSD-4-Clause, LGPL-2.1+ (libblkid, libfdisk, libmount), BSD-3-Clause (libuuid), BSD-2-Clause (xxhash), ISC (rfkill), MIT (hardlink, flock) | kernel.org                       |
 | `kmod`                       | 34.2                                                        | LGPL-2.1+ (biblioteca), GPL-2.0+ (ferramentas)                                                                                                       | kernel.org                       |
 | `xz`                         | 5.8.3                                                       | Public Domain, BSD-0-Clause, GPL-2.0+, GPL-3.0+, LGPL-2.1+                                                                                           | github.com/tukaani-project/xz    |
+| `hostapd`                    | 2.11                                                        | BSD-3-Clause                                                                                                                                         | w1.fi                            |
+| `dnsmasq`                    | 2.92rel2                                                    | GPL-2.0 or GPL-3.0                                                                                                                                   | thekelleys.org.uk                |
+| `libnl`                      | 3.12.0                                                      | LGPL-2.1+                                                                                                                                            | github.com/thom311/libnl         |
+| `iw`                         | 6.17                                                        | ISC                                                                                                                                                  | kernel.org                       |
+| `wireless-regdb`             | 2026.05.30                                                  | ISC                                                                                                                                                  | kernel.org                       |
+| `linux-firmware`             | 20260410                                                    | Proprietary (`LICENCE.broadcom_bcm43xx`, `LICENCE.cypress`)                                                                                          | kernel.org                       |
 | `toolchain-external-bootlin` | 2025.08-1: glibc 2.41-70-g1502c248, gcc 14.3.0              | glibc: GPL-2.0+ (programas), LGPL-2.1+, BSD-3-Clause, MIT (biblioteca); bibliotecas de runtime do gcc: GPL-3.0-with-GCC-exception                    | toolchains.bootlin.com           |
 
 O `legal-info` declara a licença do toolchain como `unknown`. Os valores da tabela vêm de
 `output/buildroot/host/opt/ext-toolchain/summary.csv`, o manifesto que a Bootlin distribui com o toolchain;
 o `README.txt` ao lado aponta os fontes e os textos de licença em `toolchains.bootlin.com/downloads/releases/`.
 No rootfs, os arquivos do toolchain (bibliotecas de runtime) somam 5 638 516 bytes, pelo `graph-size`.
+
+O `linux-firmware` entra só com o firmware do Wi-Fi (`BR2_PACKAGE_LINUX_FIRMWARE_BRCM_BCM43XXX`). Ele é binário e
+proprietário, com duas licenças:
+
+- **`LICENCE.broadcom_bcm43xx`:** permite reproduzir e distribuir o firmware completo e sem modificação, só para uso
+  com os chips da Broadcom para os quais ele foi feito, e exige que uma cópia da licença vá junto com ele;
+- **`LICENCE.cypress`:** permite reproduzir e distribuir o firmware em código objeto, só para uso com chips da
+  Cypress.
+
+As duas vão para a imagem, em `/lib/firmware/`, ao lado do firmware: o `post-build.sh` as copia, porque o pacote
+instala só os binários, e o `check-image.sh` confere que são as do `linux-firmware`. O `legal-info` também as copia
+para `licenses/linux-firmware-20260410/`.
 
 ## 10.3 Software na placa, da aplicação
 

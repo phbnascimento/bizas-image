@@ -1,0 +1,111 @@
+#!/bin/sh
+#
+# S39wifi-ap: põe a wlan0 em modo ponto de acesso (SSID BizasChat, 192.168.50.1/24), sem internet
+#
+# Roda em segundo plano: o rcS segue para a eth0, o dockerd e o S99bizas sem esperar o firmware do Wi-Fi, e o AP sobe
+# em paralelo. Por isso fica antes do S40network: a espera do DHCP da eth0 sem cabo não atrasa o AP. A saída vai para o
+# syslog (/var/log/messages, marca wifi-ap)
+#
+# O brcmfmac é carregado aqui, e não pelo /etc/modules-load.d do S11modules, para o modprobe também ficar fora do
+# caminho do boot. Com devtmpfs puro (sem mdev nem eudev), ninguém carregaria o módulo sozinho. As dependências
+# (cfg80211, brcmutil) vêm pelo modprobe; o submódulo do 43455 (brcmfmac-wcc) o próprio brcmfmac pede
+#
+# A wlan0 não está no /etc/network/interfaces: ela só existe depois de o firmware carregar, e um "auto wlan0" faria o
+# ifup do S40network falhar
+
+IFACE=wlan0
+ADDR=192.168.50.1/24
+HOSTAPD_CONF=/etc/hostapd.conf
+HOSTAPD_PID=/var/run/hostapd.pid
+DNSMASQ_CONF=/etc/dnsmasq.conf
+DNSMASQ_PID=/var/run/dnsmasq.pid
+# 150 tentativas de 0,2 s = 30 s
+TRIES=150
+INTERVAL=0.2
+
+wait_iface() {
+	i=0
+	while [ ! -e "/sys/class/net/$IFACE" ]; do
+		i=$((i + 1))
+		if [ "$i" -ge "$TRIES" ]; then
+			echo "ERROR: $IFACE did not appear within 30 s"
+			echo "  module loaded?   lsmod | grep brcmfmac"
+			echo "  driver messages: dmesg | grep -i brcmf"
+			echo "  firmware:        ls /lib/firmware/brcm/brcmfmac43455-sdio.*"
+			return 1
+		fi
+		sleep "$INTERVAL"
+	done
+	return 0
+}
+
+# Um bloqueio do rádio por software faz o hostapd falhar com uma mensagem pouco clara; desbloquear pelo sysfs não
+# depende do utilitário rfkill
+unblock_radio() {
+	for r in /sys/class/rfkill/rfkill*; do
+		[ -w "$r/soft" ] && echo 0 > "$r/soft"
+	done
+	return 0
+}
+
+bring_up() {
+	if ! modprobe brcmfmac; then
+		echo "ERROR: modprobe brcmfmac failed"
+		return 1
+	fi
+	wait_iface || return 1
+	unblock_radio
+
+	ip link set "$IFACE" up || return 1
+	# O flush antes do add deixa o restart funcionar: sem ele, o segundo add falha com "File exists"
+	ip addr flush dev "$IFACE"
+	ip addr add "$ADDR" dev "$IFACE" || return 1
+
+	if ! hostapd -B -P "$HOSTAPD_PID" "$HOSTAPD_CONF"; then
+		echo "ERROR: hostapd did not start; run 'hostapd -dd $HOSTAPD_CONF' to see why"
+		return 1
+	fi
+	# A passagem para modo AP pode derrubar o IPv4 da wlan0: o aparelho associaria e nada responderia. Repor é
+	# idempotente
+	if ! ip addr show "$IFACE" | grep -q "inet ${ADDR%/*}/"; then
+		echo "address dropped when the AP came up; adding it again"
+		ip addr add "$ADDR" dev "$IFACE" || return 1
+	fi
+
+	if ! dnsmasq --conf-file="$DNSMASQ_CONF" --pid-file="$DNSMASQ_PID"; then
+		echo "ERROR: dnsmasq did not start; run 'dnsmasq --test -C $DNSMASQ_CONF'"
+		return 1
+	fi
+	echo "AP up: SSID BizasChat, page at http://${ADDR%/*}"
+}
+
+stop() {
+	for pidfile in "$DNSMASQ_PID" "$HOSTAPD_PID"; do
+		if [ -f "$pidfile" ]; then
+			kill "$(cat "$pidfile")" 2>/dev/null
+			rm -f "$pidfile"
+		fi
+	done
+	ip addr flush dev "$IFACE" 2>/dev/null
+	ip link set "$IFACE" down 2>/dev/null
+	return 0
+}
+
+case "$1" in
+	start)
+		echo "[wifi-ap] starting the access point in the background; log: /var/log/messages (wifi-ap)"
+		( bring_up 2>&1 | logger -t wifi-ap ) &
+		;;
+	stop)
+		stop
+		;;
+	restart)
+		stop
+		sleep 1
+		bring_up
+		;;
+	*)
+		echo "Usage: $0 {start|stop|restart}"
+		exit 1
+		;;
+esac

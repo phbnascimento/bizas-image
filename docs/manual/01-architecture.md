@@ -48,11 +48,11 @@ propriedades com `docker inspect` (capítulo 8).
 
 ### Portas
 
-| Porta                               | Quem escuta                                                                 | Alcance                                |
-|-------------------------------------|-----------------------------------------------------------------------------|----------------------------------------|
-| 80 no host → 5000 no `bizas-server` | página, `GET /health`, `GET /chain`, `GET /chain.json`, WebSocket `/ws`     | rede local, pela `eth0`                |
-| 8081 no `bizas-validator`           | API interna: `GET /health`, `GET /chain`, `POST /blocks`                    | só a rede `bizas-net`; não é publicada |
-| 5001 no `bizas-server`              | porta de manutenção (`POST /clock`, usada por `set-date` e `set-auto-date`) | só o loopback do próprio container     |
+| Porta                               | Quem escuta                                                                 | Alcance                                     |
+|-------------------------------------|-----------------------------------------------------------------------------|---------------------------------------------|
+| 80 no host → 5000 no `bizas-server` | página, `GET /health`, `GET /chain`, `GET /chain.json`, WebSocket `/ws`     | Wi-Fi `BizasChat` (`wlan0`) e cabo (`eth0`) |
+| 8081 no `bizas-validator`           | API interna: `GET /health`, `GET /chain`, `POST /blocks`                    | só a rede `bizas-net`; não é publicada      |
+| 5001 no `bizas-server`              | porta de manutenção (`POST /clock`, usada por `set-date` e `set-auto-date`) | só o loopback do próprio container          |
 
 O server se recusa a iniciar se `ADMIN_ADDR` não for um endereço de loopback
 ([`application/server/main.go`](../../application/server/main.go), `requireLoopback`). Assim, a porta de
@@ -136,4 +136,5 @@ sequência completa, os serviços, as escolhas que mantêm o caminho curto e o p
 Nada na operação depende da internet. As imagens dos containers estão na imagem do Buildroot, a página
 embute o `tweetnacl` e o `qrcode-generator` (sem CDN), e o build dos binários Go usa `application/vendor/`
 com `GOPROXY=off`. A hora de cada mensagem vem do relógio da placa. Só o `set-auto-date` usa a rede
-externa, e ele é opcional.
+externa, e ele é opcional. A rede também não depende de infraestrutura: a própria placa cria o Wi-Fi `BizasChat`, sem saída
+para a internet, e entrega os endereços por DHCP (capítulo 5).

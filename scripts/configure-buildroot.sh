@@ -2,7 +2,7 @@
 # Gera a configuração do Buildroot do Bizas de forma reproduzível e confere o resultado:
 #   1. confere que buildroot/ é o Buildroot 2026.05.1
 #   2. carrega o raspberrypi4_64_defconfig e mescla buildroot-external/board/bizas/rpi4/buildroot.fragment
-#   3. confere, no .config, cada opção do fragmento e as que o docker-engine seleciona
+#   3. confere, no .config, cada opção do fragmento e as que o docker-engine e os pacotes do Wi-Fi selecionam
 #   4. grava buildroot-external/configs/bizas_rpi4_defconfig (savedefconfig)
 #   5. ida e volta: recarrega o defconfig gravado do zero e confere de novo
 #
@@ -54,7 +54,9 @@ check_config() {
     'BR2_PACKAGE_CONTAINERD=y' \
     'BR2_PACKAGE_IPTABLES=y' \
     'BR2_PACKAGE_CGROUPFS_V2_MOUNT=y' \
-    'BR2_PACKAGE_KMOD=y')
+    'BR2_PACKAGE_KMOD=y' \
+    'BR2_PACKAGE_LIBNL=y' \
+    'BR2_PACKAGE_LINUX_FIRMWARE_CYPRESS_CYW43XXX=y')
   [ "$missing" -eq 0 ] || die "options above were dropped by kconfig (unmet dependency?); look them up in 'make menuconfig' with '/'"
 }
 

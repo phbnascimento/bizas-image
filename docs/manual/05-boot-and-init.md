@@ -57,14 +57,47 @@ cada um com `start`:
 | `S11modules`   | Buildroot              | carrega os módulos listados em `/etc/modules-load.d/*.conf` (o `/dev` é só devtmpfs, sem `mdev` nem `udev`) |
 | `S30cgroupfs2` | Buildroot              | monta o cgroup v2 em `/sys/fs/cgroup`, de que o Docker precisa                                              |
 | `S35iptables`  | Buildroot              | carrega o `/etc/iptables.conf`, se existir; a imagem não traz esse arquivo                                  |
+| `S39wifi-ap`   | projeto                | sobe o ponto de acesso Wi-Fi `BizasChat` em segundo plano e segue na hora (abaixo)                          |
 | `S40network`   | Buildroot              | `ifup -a`: `lo` e `eth0` por DHCP (`/etc/network/interfaces`)                                               |
 | `S50crond`     | Buildroot              | o `crond` do BusyBox                                                                                        |
 | `S60dockerd`   | pacote `docker-engine` | inicia o `dockerd` em segundo plano, com a saída repassada ao syslog                                        |
 | `S99bizas`     | projeto                | provisiona os containers no 1º boot (seção 5.4)                                                             |
 
-Só o `S99bizas` é do projeto ([`rootfs-overlay/etc/init.d/S99bizas`](../../rootfs-overlay/etc/init.d/S99bizas)); os
-demais vêm do Buildroot e dos pacotes que a imagem seleciona. O `S99bizas` é o último, porque precisa do `dockerd`
-no ar.
+Dois são do projeto, [`S39wifi-ap`](../../rootfs-overlay/etc/init.d/S39wifi-ap) e
+[`S99bizas`](../../rootfs-overlay/etc/init.d/S99bizas); os demais vêm do Buildroot e dos pacotes que a imagem
+seleciona. O `S99bizas` é o último, porque precisa do `dockerd` no ar. O pacote `dnsmasq` instalaria também um
+`S80dnsmasq`; o `post-build.sh` o tira, porque quem sobe o `dnsmasq` é o `S39wifi-ap`.
+
+### Ponto de acesso Wi-Fi
+
+A placa cria a rede `BizasChat` (WPA2, senha `embarcados2026`, canal 6 de 2,4 GHz), sem internet: nenhuma regra
+de NAT leva a `wlan0` para a `eth0`. Os aparelhos recebem um endereço de `192.168.50.10` a `192.168.50.100` e abrem
+a página em `http://192.168.50.1`. A porta 80 publicada pelo Docker atende em qualquer endereço da placa, então a
+página abre igual pela `wlan0` e pela `eth0`.
+
+| Arquivo                                                                              | Papel                                                                    |
+|--------------------------------------------------------------------------------------|--------------------------------------------------------------------------|
+| [`rootfs-overlay/etc/hostapd.conf`](../../rootfs-overlay/etc/hostapd.conf)           | rede, senha e canal; driver `nl80211`; `ctrl_interface` do `hostapd_cli` |
+| [`rootfs-overlay/etc/dnsmasq.conf`](../../rootfs-overlay/etc/dnsmasq.conf)           | só DHCP (`port=0` desliga o DNS), na `wlan0`, com cada concessão no log  |
+| [`rootfs-overlay/etc/init.d/S39wifi-ap`](../../rootfs-overlay/etc/init.d/S39wifi-ap) | sobe tudo, na ordem abaixo                                               |
+
+O `S39wifi-ap start` imprime uma linha no console e passa o trabalho a um processo em segundo plano, cuja saída vai
+para o syslog (`/var/log/messages`, marca `wifi-ap`). Assim, o `rcS` segue para a `eth0`, o `dockerd` e o
+`S99bizas` sem esperar o firmware do Wi-Fi. Ele fica antes do `S40network` para a espera do DHCP da `eth0`, sem
+cabo, também não atrasar o ponto de acesso. Em segundo plano, ele:
+
+1. carrega o `brcmfmac` (capítulo 4);
+2. espera a `wlan0` aparecer, sondando a cada 0,2 s por até 30 s, porque o driver carrega o firmware de forma
+   assíncrona;
+3. desbloqueia o rádio pelo `sysfs`, se houver bloqueio por software;
+4. liga a `wlan0` e põe nela `192.168.50.1/24`;
+5. inicia o `hostapd`;
+6. repõe o endereço, se a passagem para modo AP o tiver derrubado;
+7. inicia o `dnsmasq`.
+
+Cada falha registra no log o que olhar (`lsmod`, `dmesg`, os arquivos de firmware, `hostapd -dd`). A `wlan0` não
+está no `/etc/network/interfaces`: ela só existe depois de o firmware carregar, e um `auto wlan0` faria o `ifup` do
+`S40network` falhar.
 
 ## 5.4 Provisionamento e religação dos containers
 
@@ -97,6 +130,8 @@ procedimento da seção 5.6 mede.
 - **Os dois containers sobem em paralelo.** O server não depende da ordem: ele atende desde o início, consulta o
   validator a cada pedido, e o seu `/health` só devolve 200 quando o validator também responde. Assim, o primeiro
   200 significa que a aplicação inteira está de pé.
+- **Wi-Fi em segundo plano.** O `S39wifi-ap` não segura o `rcS`: o módulo, o firmware, o `hostapd` e o `dnsmasq`
+  sobem em paralelo com a `eth0`, o `dockerd` e os containers.
 - **Console silencioso e firmware sem espera:** `quiet loglevel=3`, `disable_splash=1` e `boot_delay=0`.
 - **Containers sem nada a inicializar.** Cada imagem é `FROM scratch`, com um binário Go estático. Não há shell, nem
   interpretador, nem processo auxiliar.

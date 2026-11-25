@@ -19,6 +19,7 @@ endereço da placa no navegador.
 **Dentro do escopo:**
 - uma imagem Linux própria, gerada com o Buildroot 2026.05.1, com só o necessário para iniciar o Docker;
 - dois containers Go, `bizas-validator` e `bizas-server`, que sobem sozinhos, sem login nem comando manual;
+- a rede Wi-Fi da própria placa, `BizasChat`, sem internet, para os aparelhos próximos abrirem a página;
 - o protocolo do bloco: 512 bytes, assinatura Ed25519, encadeamento pela assinatura do bloco anterior e prova de
   trabalho com o nonce ([`docs/protocol.md`](../protocol.md));
 - a página do chat, com enquetes, o painel de cada bloco, o teste de fraude, língua e tema;
@@ -31,7 +32,8 @@ endereço da placa no navegador.
 - **sem cifra de transporte:** a página funciona por `http://` na rede local. As mensagens são assinadas, não cifradas;
 - **sem contas e sem SSH:** a identidade é uma chave privada que fica no navegador, e a manutenção exige acesso físico
   à placa;
-- **sem Wi-Fi na imagem:** a rede é a Ethernet (`eth0`);
+- **sem internet na rede da placa:** o Wi-Fi `BizasChat` só liga os aparelhos próximos à placa, sem saída para a
+  internet;
 - **sem aplicativo nativo:** a chave privada nunca sai do navegador.
 
 ## 0.3 Requisitos
