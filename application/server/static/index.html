@@ -56,11 +56,13 @@ document.documentElement.dataset.theme = th === "light" || th === "dark" ? th
 <header>
   <div class="logo"><img src="bizas.png" alt=""></div>
   <h1>Bizas</h1>
-  <span class="info"><span data-i18n="head.room">room</span> <code id="room">—</code></span>
-  <span class="info"><span data-i18n="head.you">you</span> <code id="me">—</code></span>
-  <span class="info"><span data-i18n="head.blocks">blocks</span> <code id="height">0</code></span>
-  <span class="info"><span data-i18n="head.fingerprint">fingerprint</span> <code id="fingerprint">—</code></span>
-  <span class="info"><span data-i18n="head.work">zero bits</span> <code id="work">—</code></span>
+  <div class="infos">
+    <span class="info"><span data-i18n="head.room">room</span> <code id="room">—</code></span>
+    <span class="info"><span data-i18n="head.you">you</span> <code id="me">—</code></span>
+    <span class="info"><span data-i18n="head.blocks">blocks</span> <code id="height">0</code></span>
+    <span class="info"><span data-i18n="head.fingerprint">fingerprint</span> <code id="fingerprint">—</code></span>
+    <span class="info"><span data-i18n="head.work">zero bits</span> <code id="work">—</code></span>
+  </div>
   <span id="status" data-i18n="status.connecting">connecting…</span>
   <button class="gear" type="button" data-i18n-aria="settings.title" aria-label="Settings"><svg viewBox="0 0 24 24" aria-hidden="true"><g transform="translate(12 12)" fill="currentColor"><circle r="6.5" fill="none" stroke="currentColor" stroke-width="3"/><rect x="-1.8" y="-10.5" width="3.6" height="4.5"/><rect x="-1.8" y="-10.5" width="3.6" height="4.5" transform="rotate(45)"/><rect x="-1.8" y="-10.5" width="3.6" height="4.5" transform="rotate(90)"/><rect x="-1.8" y="-10.5" width="3.6" height="4.5" transform="rotate(135)"/><rect x="-1.8" y="-10.5" width="3.6" height="4.5" transform="rotate(180)"/><rect x="-1.8" y="-10.5" width="3.6" height="4.5" transform="rotate(225)"/><rect x="-1.8" y="-10.5" width="3.6" height="4.5" transform="rotate(270)"/><rect x="-1.8" y="-10.5" width="3.6" height="4.5" transform="rotate(315)"/></g></svg></button>
 </header>
@@ -72,7 +74,8 @@ document.documentElement.dataset.theme = th === "light" || th === "dark" ? th
     <div id="plus-menu" role="menu" hidden>
       <button id="menu-poll" type="button" role="menuitem" data-i18n="menu.poll">📊 Create New Poll</button>
     </div>
-    <input id="text" maxlength="320" data-i18n-placeholder="msg.placeholder" placeholder="Message (signed on this device)" disabled>
+    <textarea id="text" rows="1" maxlength="320" enterkeyhint="enter" data-i18n-placeholder="msg.placeholder"
+      placeholder="Message (signed on this device)" disabled></textarea>
     <label id="work-box" class="work" hidden><span data-i18n="msg.workBits">Zero bits</span><input id="work-bits" type="number"
       min="0" max="20" step="1" value="10" inputmode="numeric" data-i18n-aria="msg.workHint" data-i18n-title aria-label="Zero bits"></label>
     <span id="count">0/320</span>

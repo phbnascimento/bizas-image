@@ -59,7 +59,11 @@ porta de manutenção `POST /clock` só dentro do container. As duas estão desc
    dados do site a apaga, e a identidade junto. O QR code da chave privada aparece enquanto ela é válida no campo.
 2. **Escrever.** O texto vai de até 320 bytes. A página assina com a hora da placa, faz a prova de trabalho (varia o
    `nonce` até a assinatura ter os bits zero exigidos pela cadeia) e envia. Quem escreve a primeira mensagem de uma
-   sala escolhe os bits zero, de 0 a 20 (padrão 10), e esse valor vale para toda a cadeia.
+   sala escolhe os bits zero, de 0 a 20 (padrão 10), e esse valor vale para toda a cadeia. A mensagem pode ter várias
+   linhas: no teclado físico, Enter envia e Shift+Enter quebra a linha; em tela de toque, o Enter do teclado virtual
+   quebra a linha e quem envia é o botão "Send". A caixa cresce até 6 linhas. Da prova de trabalho até a resposta do
+   validator, a caixa e o botão "+" ficam travados e acinzentados; a aceitação, a recusa ou o erro os destravam. Se a
+   resposta não chega em 10 s, a página reconecta e recebe o histórico, que mostra se o bloco entrou.
 3. **Ver a hora.** Cada mensagem mostra a idade ("5 min ago"), medida no relógio da placa. Os comandos `set-date` e
    `set-auto-date` informam a hora real, e a página passa a mostrar a data.
 4. **Enquetes.** O botão "+", à esquerda da barra de mensagem, abre o menu "Create New Poll" ("Criar Nova Enquete" em

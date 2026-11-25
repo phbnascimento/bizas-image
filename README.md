@@ -194,6 +194,11 @@ O navegador guarda estes dados no `localStorage`, só neste aparelho; nada deles
 - **`bizas.names`, `bizas.notes` e `bizas.hues`:** o nome, a nota e a cor que este aparelho dá a cada chave pública.
 - **`bizas.lang` e `bizas.theme`:** a língua e o tema.
 
+A mensagem tem até 320 bytes e pode ter várias linhas. No teclado do computador, Enter envia e Shift+Enter quebra a
+linha; em tela de toque, como no celular, o Enter do teclado virtual quebra a linha e quem envia é o botão "Send".
+Enquanto o bloco é preparado (a prova de trabalho, abaixo) e confirmado pelo validator, a caixa de mensagem fica cinza
+e não aceita digitação; ela volta quando o bloco é aceito ou recusado.
+
 Nas configurações, **Enable Fraud Test** expande a barra de baixo e mostra todos os campos do bloco (`room`,
 `stamp`, `nonce`, `info`, `type`, `length`, `author`, `sig`, `prev`), menos o `data`, que é o texto da
 mensagem. Cada campo pode ser editado à mão, e o botão *default* ao lado devolve o valor que a mensagem normal

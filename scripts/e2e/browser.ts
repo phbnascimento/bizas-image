@@ -776,6 +776,33 @@ await ev(A, `document.getElementById("fraud-toggle").click()`);
 await ev(A, `document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }))`);
 await typeMsg("");
 console.log("polls:", JSON.stringify(await pollRows(A, POLL)), JSON.stringify(await pollRows(A, POLL2)));
+// Teclado físico (o Firefox headless não tem ponteiro grosso): Shift+Enter não envia e a caixa cresce com as linhas;
+// Enter envia, a quebra de linha chega inteira ao outro aparelho e a caixa volta a uma linha
+const MULTI = "first line\nsecond line\nthird line";
+const boxHeight = () => ev(A, `document.getElementById("text").getBoundingClientRect().height`);
+const enter = (shift: boolean) => ev(A, `document.getElementById("text").dispatchEvent(new KeyboardEvent("keydown",
+  { key: "Enter", shiftKey: ${shift}, bubbles: true, cancelable: true }))`);
+const beforeMulti = await msgs(A), oneLine = await boxHeight();
+await typeMsg(MULTI);
+await enter(true);
+await sleep(500);
+if (await msgs(A) !== beforeMulti) throw new Error("Shift+Enter sent the message");
+const threeLines = await boxHeight();
+if (!(threeLines > oneLine * 2)) throw new Error(`the message box did not grow: ${oneLine} -> ${threeLines}`);
+// O Enter começa a prova de trabalho na mesma hora: a caixa e o "+" travam até o validator aceitar, e destravam depois
+const lockedNow = await ev(A, `(() => { document.getElementById("text").focus();
+  document.getElementById("text").dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+  const t = document.getElementById("text");
+  return JSON.stringify([t.disabled, document.getElementById("plus").disabled, getComputedStyle(t).cursor]); })()`);
+if (lockedNow !== JSON.stringify([true, true, "not-allowed"])) throw new Error(`the message box was not locked while sending: ${lockedNow}`);
+await until(B, `[...document.querySelectorAll(".msg .text")].some(e => e.textContent === ${JSON.stringify(MULTI)})`,
+  "B to see the multi-line message");
+await until(A, `document.getElementById("text").value === ""`, "the message box to clear");
+if (await boxHeight() !== oneLine) throw new Error(`the message box did not shrink back: ${await boxHeight()} != ${oneLine}`);
+const unlocked = await ev(A, `JSON.stringify([document.getElementById("text").disabled, document.getElementById("plus").disabled,
+  document.activeElement === document.getElementById("text")])`);
+if (unlocked !== JSON.stringify([false, false, true])) throw new Error(`the message box did not unlock (or lost the focus): ${unlocked}`);
+console.log(`multi-line: Shift+Enter kept it, Enter sent it (box locked while sending, then unlocked with focus); box ${oneLine} -> ${threeLines} -> ${oneLine} px`);
 console.log("height A:", await ev(A, `document.getElementById("height").textContent`));
 // A cadeia ganhou um bloco no teste de fraude: a impressão digital final é a da cabeça atual, que o script confere com
 // a da cadeia exportada

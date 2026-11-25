@@ -845,18 +845,38 @@ function byteLength(s) {
 // invisíveis que não são espaço, como o de largura zero, não entram nessa regra
 const isBlank = (s) => /^\s*$/.test(s);
 
+// Altura da caixa de mensagem: a do conteúdo, limitada pelo max-height do CSS
+function fitText() {
+  ui.text.style.height = "auto";
+  ui.text.style.height = `${ui.text.scrollHeight}px`;
+}
+
+// A caixa tinha o foco quando foi travada: volta a ter quando destravar
+let refocusText = false;
+
 function updateCount() {
+  fitText();
   const n = byteLength(ui.text.value);
   ui.count.textContent = `${n}/${MAX_DATA_LENGTH}`;
   ui.count.classList.toggle("over", n > MAX_DATA_LENGTH);
-  ui.text.disabled = !synced;
+  // Com um bloco pendente (prova de trabalho rodando ou esperando a resposta do validator), a caixa fica travada: o
+  // texto é o do bloco e só se apaga quando ele é aceito. Toda saída do pendente (aceito, recusado, erro, desistência)
+  // passa por aqui e destrava
+  const locked = !synced || pending !== null;
+  if (locked && document.activeElement === ui.text) refocusText = true;
+  ui.text.disabled = locked;
+  ui.workBits.disabled = locked;
+  if (!locked && refocusText) {
+    refocusText = false;
+    ui.text.focus();
+  }
   // Com a cadeia vazia, quem envia cria o gênese e escolhe o N da sala
   ui.workBox.hidden = !(synced && !head);
   const badBits = !head && chosenBits() === null;
   ui.workBits.classList.toggle("over", badBits);
   ui.send.disabled = !synced || pending !== null || isBlank(ui.text.value) || n > MAX_DATA_LENGTH || badBits;
-  ui.plus.disabled = !synced;
-  if (!synced) closePlusMenu();
+  ui.plus.disabled = locked;
+  if (locked) closePlusMenu();
   refreshPollForm();
   for (const index of pollCards.keys()) paintPoll(index);
 }
@@ -922,7 +942,16 @@ async function sendSpec(spec, tries) {
   }
   pending.sig = block.sig;
   pending.mining = null;
+  sendBlock(bytes);
+}
+
+// Envia o bloco pronto. Se nem a confirmação nem a recusa chegarem em ANSWER_MS, reconecta: o histórico que volta diz
+// se o bloco entrou (e o pendente se resolve) ou não (e ele é refeito ou abandonado). A caixa nunca fica travada
+const ANSWER_MS = 10_000;
+function sendBlock(bytes) {
+  const waiting = pending;
   ws.send(bytes);
+  setTimeout(() => { if (pending === waiting && pending?.sig) resync(); }, ANSWER_MS);
 }
 
 function retry() {
@@ -1091,10 +1120,18 @@ async function sendFraud() {
   }
   pending.sig = res.effective.sig;
   pending.mining = null;
-  ws.send(bytes);
+  sendBlock(bytes);
 }
 
 ui.text.addEventListener("input", () => { updateCount(); refreshFraud(); });
+// No teclado físico, Enter envia e Shift+Enter quebra a linha. Em tela de toque (ponteiro principal grosso), o Enter do
+// teclado virtual quebra a linha e quem envia é o botão. Durante a composição de um caractere (IME), o Enter é dela
+const touch = matchMedia("(pointer: coarse)");
+ui.text.addEventListener("keydown", (ev) => {
+  if (ev.key !== "Enter" || ev.shiftKey || ev.isComposing || touch.matches) return;
+  ev.preventDefault();
+  if (!ui.send.disabled) ui.form.requestSubmit();
+});
 ui.form.addEventListener("submit", (ev) => {
   ev.preventDefault();
   const text = ui.text.value;
