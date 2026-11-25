@@ -2,7 +2,8 @@
 
 Este capítulo lista os testes automáticos do projeto: o que cada um confere, como rodá-lo e o resultado
 obtido. As saídas citadas são
-da execução de 23/11/2026 na máquina de referência do capítulo 2, com o código da versão 0.4a.
+da execução de 23/11/2026 na máquina de referência do capítulo 2, com o código da aplicação da versão 0.4a, que a 0.5
+não muda; as da imagem (seção 8.3), de 25/11/2026, com a 0.5.
 
 Uma conferência só merece confiança depois de ser **sabotada**, ou seja, depois de se ver que ela reprova
 quando o que ela confere está errado. A seção 8.9 lista as sabotagens feitas.

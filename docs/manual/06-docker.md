@@ -41,7 +41,7 @@ publicada no host.
 
 ## 6.3 Imagens
 
-- **Tag fixa:** `bizas-validator:0.4a` e `bizas-server:0.4a`. Nunca `latest`. A versão fica só em
+- **Tag fixa:** `bizas-validator:0.5` e `bizas-server:0.5`. Nunca `latest`. A versão fica só em
   `docker/version.env`.
 - **Imagem final:** `FROM scratch`, com o binário `/app` e nada mais. Sem shell e sem bibliotecas.
 - **Build:** usa `golang:1.27.3-alpine`, fixada pelo digest do índice multi-arquitetura. O compilador
@@ -51,7 +51,7 @@ publicada no host.
 - **Na placa:** as imagens chegam como tar (`docker save`) dentro da imagem do Buildroot e são
   carregadas no 1º boot. **Nada é baixado no boot.**
 
-Tamanhos do build arm64 da versão 0.4a:
+Tamanhos do build arm64 da versão 0.5:
 
 |           | tar         | binário `/app` |
 |-----------|------------:|---------------:|

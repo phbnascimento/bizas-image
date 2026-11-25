@@ -1,2 +1,2 @@
-90f1582a92b8783d3dfd1e17b523e23c9b6a8f04c440f5df7b093ccb3234d30e  bizas-validator-0.4a.tar
-53cd930c78fb1ebe0ef034b081d35871904e35f17df391ab6ff8cf577c3600c0  bizas-server-0.4a.tar
+30d4f0342d3ea6ee34ffcd1bd2cae93566c7722ddf882c331c2fc556098aff19  bizas-validator-0.5.tar
+cd76a7b8177aa8ea1d327de18a475bea773ce6a40063763f936e5fb6010967ea  bizas-server-0.5.tar
