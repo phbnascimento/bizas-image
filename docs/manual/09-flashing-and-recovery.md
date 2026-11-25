@@ -33,8 +33,8 @@ com a saída do próprio `docker load`, estão estas:
 ```text
 [bizas] first boot: provisioning the containers
 [bizas] docker load may keep this screen still for a few minutes
-[provision] docker load /opt/bizas/bizas-validator-0.5.tar (this may take a while)
-[provision] docker load /opt/bizas/bizas-server-0.5.tar (this may take a while)
+[provision] docker load /opt/bizas/bizas-validator-0.5a.tar (this may take a while)
+[provision] docker load /opt/bizas/bizas-server-0.5a.tar (this may take a while)
 [provision] creating bizas-validator
 [provision] creating bizas-server (port 80 -> 5000)
 [provision] containers started: bizas-validator, bizas-server
@@ -98,7 +98,7 @@ removidos antes; o **volume `bizas-data` não**, porque ele guarda a cadeia.
 
 ```sh
 docker rm -f bizas-validator bizas-server        # remove os containers (a cadeia fica no volume)
-docker rmi bizas-validator:0.5 bizas-server:0.5    # opcional: força um novo docker load dos tars
+docker rmi bizas-validator:0.5a bizas-server:0.5a   # opcional: força um novo docker load dos tars
 rm /var/lib/bizas/provisioned
 /etc/init.d/S99bizas start                       # ou reiniciar a placa
 ```

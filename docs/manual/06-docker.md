@@ -41,7 +41,7 @@ publicada no host.
 
 ## 6.3 Imagens
 
-- **Tag fixa:** `bizas-validator:0.5` e `bizas-server:0.5`. Nunca `latest`. A versão fica só em
+- **Tag fixa:** `bizas-validator:0.5a` e `bizas-server:0.5a`. Nunca `latest`. A versão fica só em
   `docker/version.env`.
 - **Imagem final:** `FROM scratch`, com o binário `/app` e nada mais. Sem shell e sem bibliotecas.
 - **Build:** usa `golang:1.27.3-alpine`, fixada pelo digest do índice multi-arquitetura. O compilador
@@ -51,12 +51,12 @@ publicada no host.
 - **Na placa:** as imagens chegam como tar (`docker save`) dentro da imagem do Buildroot e são
   carregadas no 1º boot. **Nada é baixado no boot.**
 
-Tamanhos do build arm64 da versão 0.5:
+Tamanhos do build arm64 da versão 0.5a:
 
 |           | tar         | binário `/app` |
 |-----------|------------:|---------------:|
 | validator | 2 851 328 B | 6 750 332 B    |
-| server    | 3 092 480 B | 7 340 156 B    |
+| server    | 3 094 528 B | 7 405 692 B    |
 
 O tar é menor que o binário porque a camada vai comprimida. O SHA-256 de cada tar é gravado pelo
 `containers-build.sh` em `evidence/hashes-containers.txt`. O hash identifica o artefato, mas não

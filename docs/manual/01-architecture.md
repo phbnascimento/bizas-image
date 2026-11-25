@@ -16,7 +16,7 @@ necessário para iniciar o Docker. A aplicação roda em dois containers. O prot
 | Kernel         | Linux 6.12.61 da árvore `raspberrypi/linux`, `bcm2711_defconfig` mais o fragmento do Docker                 | [`kernel-config/docker.fragment`](../../kernel-config/docker.fragment), [capítulo 4](04-kernel-and-drivers.md)      |
 | Init           | init do BusyBox; `/etc/inittab` e os scripts de `/etc/init.d`                                               | Buildroot (`BR2_INIT_BUSYBOX`), [`S99bizas`](../../rootfs-overlay/etc/init.d/S99bizas)                              |
 | Docker         | `dockerd`, `containerd`, `runc` e `iptables`, do pacote `docker-engine`; o comando `docker` do `docker-cli` | [`buildroot.fragment`](../../buildroot-external/board/bizas/rpi4/buildroot.fragment), [capítulo 3](03-buildroot.md) |
-| Aplicação      | `bizas-validator:0.5` e `bizas-server:0.5`, dois binários Go estáticos em imagens `FROM scratch`            | [`docker/`](../../docker), [`application/`](../../application), [capítulo 6](06-docker.md)                          |
+| Aplicação      | `bizas-validator:0.5a` e `bizas-server:0.5a`, dois binários Go estáticos em imagens `FROM scratch`          | [`docker/`](../../docker), [`application/`](../../application), [capítulo 6](06-docker.md)                          |
 | Interface      | página web servida pelo `bizas-server`, aberta no navegador de outro aparelho                               | [`application/server/static/`](../../application/server/static)                                                     |
 
 A imagem não tem ambiente gráfico. A interface do usuário é a página web, aberta em outro aparelho da
