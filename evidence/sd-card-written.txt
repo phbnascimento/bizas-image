@@ -1,6 +1,6 @@
-date: 2026-11-25 17:48:38 -0300
+date: 2026-11-25 19:54:17 -0300
 device: /dev/sda (31 GB)
 image: output/buildroot/images/sdcard.img (1107296768 bytes)
 image sha256: f7c1d2c3b92d48c0daf530cfb4984889f2aeb330bf86f9e48091e90d9f0f79c7
 card sha256:  f7c1d2c3b92d48c0daf530cfb4984889f2aeb330bf86f9e48091e90d9f0f79c7
-times: write 89 s, read-back 64 s
+times: write 87 s, read-back 65 s
